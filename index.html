@@ -320,7 +320,12 @@
           <div class="subcard-title-row"><div><h3>Familienprofil</h3><p>Einmal speichern und passende Altersfilter automatisch setzen.</p></div><span class="profile-badge">lokal gespeichert</span></div>
           <div class="family-profile-grid">
             <label><span>Erwachsene</span><input id="familyAdults" type="number" min="1" max="12" value="2" /></label>
-            <label><span>Alter der Kinder</span><input id="familyChildAges" type="text" inputmode="numeric" placeholder="z. B. 2, 8, 14" /></label>
+            <div class="family-child-editor" aria-labelledby="familyChildAgesLabel">
+              <span id="familyChildAgesLabel" class="field-label">Alter der Kinder</span>
+              <input id="familyChildAges" type="hidden" value="" />
+              <div id="familyChildAgeList" class="child-age-list" aria-live="polite"></div>
+              <button id="addChildAgeBtn" class="ghost-btn add-child-btn" type="button">+ Kind hinzufügen</button>
+            </div>
             <label><span>Hund</span><select id="familyDog"><option value="no">Nein</option><option value="yes">Ja</option></select></label>
             <label><span>Camping-Art</span><select id="familyVehicle"><option value="all">Egal</option><option value="motorhome">Wohnmobil</option><option value="van">Van</option><option value="caravan">Wohnwagen</option><option value="tent">Zelt</option></select></label>
           </div>
@@ -395,8 +400,8 @@
   </main>
 
   <footer class="app-footer">
-    <div><strong>Campingfinder</strong><span>© 2026 Marcel Hentschel · Version 13</span></div>
-    <nav aria-label="Rechtliches"><button type="button" data-legal="imprint">Impressum</button><button type="button" data-legal="privacy">Datenschutz</button><button type="button" data-legal="sources">Datenquellen</button><a class="footer-link" href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Kartenfehler melden ↗</a></nav>
+    <div><strong>Campingfinder</strong><span>© 2026 Marcel Hentschel</span></div>
+    <nav aria-label="Rechtliches"><button type="button" data-legal="imprint">Impressum</button><button type="button" data-legal="privacy">Datenschutz</button><button type="button" data-legal="sources">Datenquellen</button></nav>
   </footer>
 
   <div id="compareBar" class="compare-bar" hidden>

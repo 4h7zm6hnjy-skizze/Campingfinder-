@@ -159,3 +159,10 @@ Campingfinder soll dauerhaft ohne Pflicht-Abo und ohne kostenpflichtige API-Schl
 - externe freie Dienste bleiben austauschbar und werden in `THIRD_PARTY_LICENSES.md` transparent dokumentiert
 
 Hinweis: Die App kann ohne kostenpflichtigen API-Schlüssel betrieben werden. Öffentliche Gratisdienste haben jedoch Nutzungsbedingungen, Limits und keine dauerhafte Verfügbarkeitsgarantie. „Frei“ bedeutet daher nicht „ohne Lizenzbedingungen“.
+
+
+## Version 14 – Mobile Fix
+- Mobile Hochformat-Ansicht für iPhone/Android optimiert.
+- Suchabfragen repariert (Overpass-Union-Syntax).
+- Kinderalter werden über einzelne Felder hinzugefügt; kein Komma nötig.
+- PC-/Tablet-Version bleibt responsiv erhalten.

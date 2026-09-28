@@ -79,7 +79,7 @@ const els = {
   mapLayer: $('mapLayerSelect'), language: $('languageSelect'),
   favoriteLists: $('favoriteLists'), visitedPlaces: $('visitedPlaces'), newListName: $('newListName'), addList: $('addListBtn'), refreshMyPlaces: $('refreshMyPlacesBtn'),
   journalForm: $('journalForm'), journalEntries: $('journalEntries'),
-  familyAdults: $('familyAdults'), familyChildAges: $('familyChildAges'), familyDog: $('familyDog'), familyVehicle: $('familyVehicle'),
+  familyAdults: $('familyAdults'), familyChildAges: $('familyChildAges'), familyChildAgeList: $('familyChildAgeList'), addChildAgeBtn: $('addChildAgeBtn'), familyDog: $('familyDog'), familyVehicle: $('familyVehicle'),
   familySummary: $('familyProfileSummary'), saveFamilyProfile: $('saveFamilyProfileBtn'), applyFamilyProfile: $('applyFamilyProfileBtn'),
   tripName: $('tripName'), tripStartDate: $('tripStartDate'), tripStages: $('tripStages'), tripSummary: $('tripSummary'), tripRouteBtn: $('tripRouteBtn'), tripGpxBtn: $('tripGpxBtn'), tripKmlBtn: $('tripKmlBtn'), tripIcsBtn: $('tripIcsBtn'), tripPrintBtn: $('tripPrintBtn'), tripClearBtn: $('tripClearBtn'),
   networkStatus: $('networkStatus'), lastSearchInfo: $('lastSearchInfo'), loadLastSearchBtn: $('loadLastSearchBtn'), exportTravelFolderBtn: $('exportTravelFolderBtn'), importTravelFolderInput: $('importTravelFolderInput'),
@@ -552,8 +552,8 @@ async function searchNearMe() {
       els.status.textContent = `Campingplätze im Umkreis von ${Math.round(radius/1000)} km werden gesucht …`;
       const around = `(around:${radius},${lat.toFixed(6)},${lon.toFixed(6)})`;
       const query = `[out:json][timeout:45];
-(${overpassTypeFragments(around)})
-out center meta;`;
+(${overpassTypeFragments(around)});
+out body center;`;
       const data = await overpass(query);
       state.currentSearchLabel = `Nähe · ${Math.round(radius/1000)} km`;
       ingestResults(data.elements || [], p => { p.distanceKm = haversineKm(lat, lon, p.lat, p.lon); });
@@ -592,8 +592,8 @@ async function searchRoute() {
         : `nwr["tourism"="camp_site"](around:${corridor},${line});
 nwr["tourism"="caravan_site"](around:${corridor},${line});`;
     const query = `[out:json][timeout:60];
-(${qParts})
-out center meta;`;
+(${qParts});
+out body center;`;
     const places = await overpass(query);
     state.currentSearchLabel = `Route ${startText} → ${endText}`;
     if(els.sort) els.sort.value='distance';
@@ -635,11 +635,11 @@ async function searchCountry() {
       const latPad = Math.max((n-s) * 0.35, 0.16);
       const lonPad = Math.max((e-w) * 0.35, 0.22);
       const bbox = `(${(s-latPad).toFixed(5)},${(w-lonPad).toFixed(5)},${(n+latPad).toFixed(5)},${(e+lonPad).toFixed(5)})`;
-      query = `[out:json][timeout:45];\n(${overpassTypeFragments(bbox)})\nout center meta;`;
+      query = `[out:json][timeout:45];\n(${overpassTypeFragments(bbox)});\nout body center;`;
       state.currentSearchLabel = placeText;
     } else {
       const areaExpr = '(area.searchArea)';
-      query = `[out:json][timeout:50];\narea["ISO3166-1"="${countryCode}"][admin_level=2]->.searchArea;\n(${overpassTypeFragments(areaExpr)})\nout center meta;`;
+      query = `[out:json][timeout:50];\narea["ISO3166-1"="${countryCode}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;\n(${overpassTypeFragments(areaExpr)});\nout body center;`;
       state.currentSearchLabel = countryName;
     }
     const data = await overpass(query);
@@ -658,7 +658,7 @@ async function searchMapArea() {
   setLoading('Sichtbarer Kartenbereich wird durchsucht …');
   try {
     const bbox = `(${b.getSouth().toFixed(5)},${b.getWest().toFixed(5)},${b.getNorth().toFixed(5)},${b.getEast().toFixed(5)})`;
-    const query = `[out:json][timeout:35];\n(${overpassTypeFragments(bbox)})\nout center meta;`;
+    const query = `[out:json][timeout:35];\n(${overpassTypeFragments(bbox)});\nout body center;`;
     const data = await overpass(query);
     state.currentSearchLabel = 'Kartenbereich';
     ingestResults(data.elements || []);
@@ -1835,6 +1835,23 @@ function renderOfflineStatus() {
 function parseChildAges(value) {
   return String(value || '').split(/[;,\s]+/).map(v=>Number.parseInt(v,10)).filter(v=>Number.isInteger(v)&&v>=0&&v<=17).slice(0,12);
 }
+function childAgeEditorRawValues() {
+  if (!els.familyChildAgeList) return [];
+  return [...els.familyChildAgeList.querySelectorAll('.child-age-input')].map(input => String(input.value ?? '').trim()).slice(0,12);
+}
+function childAgeEditorValues() {
+  return childAgeEditorRawValues().map(v=>Number.parseInt(v,10)).filter(v=>Number.isInteger(v)&&v>=0&&v<=17).slice(0,12);
+}
+function syncChildAgeHidden() {
+  if (els.familyChildAges) els.familyChildAges.value = childAgeEditorValues().join(', ');
+}
+function renderChildAgeEditors(values = []) {
+  if (!els.familyChildAgeList) return;
+  const safe = (Array.isArray(values) ? values : []).slice(0,12);
+  els.familyChildAgeList.innerHTML = safe.map((value,index)=>`<div class="child-age-row"><label><span>Kind ${index+1}</span><input class="child-age-input" type="number" inputmode="numeric" min="0" max="17" step="1" value="${value === '' || value == null ? '' : escapeHtml(String(value))}" placeholder="Alter" aria-label="Alter von Kind ${index+1}" /></label><button type="button" class="child-age-remove" data-child-age-remove="${index}" aria-label="Kind ${index+1} entfernen">×</button></div>`).join('');
+  if (!safe.length) els.familyChildAgeList.innerHTML = '<p class="child-age-empty">Noch kein Kind eingetragen.</p>';
+  syncChildAgeHidden();
+}
 function ageProfileLabels(ages) {
   const labels=[];
   if (ages.some(a=>a<=2)) labels.push('Baby 0–2');
@@ -1846,7 +1863,7 @@ function ageProfileLabels(ages) {
 function readFamilyProfileForm() {
   return {
     adults: Math.max(1,Math.min(12,Number(els.familyAdults?.value||2))),
-    childAges: parseChildAges(els.familyChildAges?.value),
+    childAges: els.familyChildAgeList ? childAgeEditorValues() : parseChildAges(els.familyChildAges?.value),
     dog: els.familyDog?.value==='yes'?'yes':'no',
     vehicle: ['motorhome','van','caravan','tent'].includes(els.familyVehicle?.value)?els.familyVehicle.value:'all'
   };
@@ -1860,6 +1877,7 @@ function renderFamilyProfile() {
   const p=state.familyProfile;
   if (els.familyAdults) els.familyAdults.value=String(p.adults||2);
   if (els.familyChildAges) els.familyChildAges.value=(p.childAges||[]).join(', ');
+  renderChildAgeEditors(p.childAges||[]);
   if (els.familyDog) els.familyDog.value=p.dog==='yes'?'yes':'no';
   if (els.familyVehicle) els.familyVehicle.value=p.vehicle||'all';
   if (els.familySummary) {
@@ -2052,6 +2070,26 @@ els.results.addEventListener('click', e => {
 });
 
 
+els.addChildAgeBtn?.addEventListener('click', () => {
+  const values = els.familyChildAgeList ? childAgeEditorRawValues() : [];
+  if (values.length >= 12) return;
+  const next = values.filter(v=>v !== '').concat('');
+  renderChildAgeEditors(next);
+  const inputs = els.familyChildAgeList?.querySelectorAll('.child-age-input');
+  inputs?.[inputs.length-1]?.focus();
+});
+els.familyChildAgeList?.addEventListener('input', e => {
+  const input=e.target.closest('.child-age-input'); if(!input)return;
+  let n=Number(input.value);
+  if(input.value!=='' && Number.isFinite(n)){ n=Math.max(0,Math.min(17,Math.round(n))); input.value=String(n); }
+  syncChildAgeHidden();
+});
+els.familyChildAgeList?.addEventListener('click', e => {
+  const btn=e.target.closest('[data-child-age-remove]'); if(!btn)return;
+  const idx=Number(btn.dataset.childAgeRemove);
+  const values=childAgeEditorRawValues();
+  if(Number.isInteger(idx)){ values.splice(idx,1); renderChildAgeEditors(values); }
+});
 els.saveFamilyProfile?.addEventListener('click', persistFamilyProfile);
 els.applyFamilyProfile?.addEventListener('click', applyFamilyProfile);
 els.tripName?.addEventListener('change',()=>{persistTrip();renderTrip();});

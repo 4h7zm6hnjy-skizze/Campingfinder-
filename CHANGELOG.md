@@ -1,5 +1,13 @@
 # Campingfinder – Changelog
 
+## Version 14 – Mobile & Suche
+- Overpass-Suchabfragen korrigiert (Union-Blöcke werden korrekt mit Semikolon abgeschlossen).
+- Suche nach Land, Ort, Kartenbereich, Nähe und Route repariert.
+- iPhone-Hochformat deutlich kompakter und touchfreundlicher.
+- iOS-Formularzoom verhindert (Formularschrift mindestens 16 px).
+- Kinderalter: beliebig mehrere Kinder über „+ Kind hinzufügen“ statt Komma-Eingabe.
+- PWA-Cache auf v14 angehoben.
+
 ## Version 13
 - Stabilitäts-/Offline-Fallback für die Kartenbibliothek
 - PWA-Cache aktualisiert
