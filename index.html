@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f5a3c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Campingfinder" />
+  <meta name="description" content="Campingfinder – Ganz Europa gehört dir. Campingplätze und Wohnmobilstellplätze finden, Routen planen, Wetter prüfen und Favoriten verwalten." />
+  <title>Campingfinder</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+  <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand-compact" href="#top" aria-label="Campingfinder Startseite">
+      <img src="icon-192.png" alt="" />
+      <span><strong>Campingfinder</strong><small>Ganz Europa gehört dir</small></span>
+    </a>
+    <nav class="desktop-nav" aria-label="Hauptnavigation">
+      <a href="#finder">Entdecken</a>
+      <a href="#mapArea">Karte</a>
+      <a href="#routePlanner">Route</a>
+      <a href="#tripPlanner">Reise</a>
+      <a href="#myPlaces">Meine Plätze</a>
+      <a href="#helpers">Helfer</a>
+    </nav>
+    <div class="header-actions">
+      <label class="language-control" title="Sprache">
+        <span aria-hidden="true">DE</span>
+        <select id="languageSelect" aria-label="Sprache">
+          <option value="de">DE</option><option value="en">EN</option><option value="nl">NL</option>
+          <option value="fr">FR</option><option value="it">IT</option><option value="es">ES</option><option value="pl">PL</option>
+        </select>
+      </label>
+      <button id="themeToggle" class="icon-button" type="button" aria-label="Darstellung wechseln" title="Hell/Dunkel">◐</button>
+      <button id="installBtn" class="ghost-btn compact-install" hidden data-i18n="install">App installieren</button>
+    </div>
+  </header>
+
+  <main id="top" class="shell">
+    <section class="hero card" aria-labelledby="heroTitle">
+      <div class="hero-copy">
+        <div class="eyebrow">CAMPING IN EUROPA</div>
+        <picture class="hero-logo-wrap">
+          <source srcset="logo-campingfinder-700.webp" type="image/webp" />
+          <img class="hero-logo" src="logo-campingfinder.png" alt="Campingfinder mit Wohnmobil, Wohnwagen, Van und Zelt" />
+        </picture>
+        <h1 id="heroTitle">Ganz Europa gehört dir.</h1>
+        <p>Campingplätze und Wohnmobilstellplätze in Europa finden – mit Karte, Wetter, Ausstattung, Route, Favoriten und Original-Webseite des Platzes.</p>
+        <div class="trust-strip" aria-label="Datenhinweise">
+          <span>✓ Original-Webseiten, wenn vorhanden</span>
+          <span>✓ Aktuelles Wetter</span>
+          <span>✓ Offene Kartendaten</span>
+        </div>
+      </div>
+
+      <section id="finder" class="hero-search" aria-label="Campingplatz-Suche">
+        <div class="search-heading"><strong>Wohin möchtest du?</strong><span>Suche nach Land, Ort, Region oder Platzname.</span></div>
+        <div class="search-grid premium-search">
+          <label><span data-i18n="country">Land</span><select id="countrySelect"></select></label>
+          <label class="search-location"><span data-i18n="place">Ort / Region / Name</span><input id="placeInput" type="search" placeholder="z. B. Norddeich, Gardasee, Camping Müller" autocomplete="off" /></label>
+          <label><span data-i18n="siteType">Platzart</span><select id="typeSelect"><option value="all">Alle Plätze</option><option value="camp_site">Campingplätze</option><option value="caravan_site">Wohnmobilstellplätze</option></select></label>
+          <button id="countrySearchBtn" class="primary-btn search-main-btn" type="button" data-i18n="searchCountry">Suchen</button>
+        </div>
+
+        <div class="smart-search-box" aria-label="Intelligente Filtersuche">
+          <div class="smart-search-copy">
+            <strong>Intelligente Suche</strong>
+            <span>Beschreibe deinen Wunsch in einem Satz – die App setzt passende Filter lokal auf deinem Gerät.</span>
+          </div>
+          <div class="smart-search-row">
+            <input id="smartSearchInput" type="search" placeholder="z. B. Italien am Meer mit Hund, Privatbad und Kinderpool" autocomplete="off" />
+            <button id="smartSearchBtn" class="secondary-btn" type="button">Auswerten &amp; suchen</button>
+          </div>
+          <div id="smartSearchFeedback" class="smart-search-feedback" aria-live="polite"></div>
+        </div>
+
+        <div class="vehicle-tabs" aria-label="Schnellauswahl Platzart">
+          <button class="vehicle-chip active" type="button" data-site-type="all"><span class="vehicle-icon">⌂</span><span>Alle</span></button>
+          <button class="vehicle-chip" type="button" data-site-type="camp_site"><span class="vehicle-icon">△</span><span>Camping</span></button>
+          <button class="vehicle-chip" type="button" data-site-type="caravan_site"><span class="vehicle-icon">▣</span><span>Wohnmobil</span></button>
+          <button class="vehicle-chip" type="button" data-filter-toggle="motorhomeFilter"><span class="vehicle-icon">▤</span><span>Van</span></button>
+          <button class="vehicle-chip" type="button" data-filter-toggle="caravanFilter"><span class="vehicle-icon">▱</span><span>Wohnwagen</span></button>
+          <button class="vehicle-chip" type="button" data-filter-toggle="tentsFilter"><span class="vehicle-icon">△</span><span>Zelt</span></button>
+          <button class="vehicle-chip" type="button" data-style-value="glamping"><span class="vehicle-icon">◇</span><span>Glamping</span></button>
+        </div>
+
+        <div class="quick-actions-row">
+          <div class="near-me-box">
+            <select id="nearRadius" aria-label="Radius">
+              <option value="10000">10 km</option><option value="25000" selected>25 km</option><option value="50000">50 km</option>
+              <option value="100000">100 km</option><option value="250000">250 km</option>
+            </select>
+            <button id="nearMeBtn" class="secondary-btn" type="button" data-i18n="nearMe">In meiner Nähe</button>
+          </div>
+          <button id="mapSearchBtn" class="ghost-btn" type="button" data-i18n="searchMap">Kartenbereich durchsuchen</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="discovery-row" aria-label="Schnellfilter">
+      <button class="discovery-card" type="button" data-filter-toggle="familyFilter"><span>Familie</span><small>Spiel &amp; Urlaub</small></button>
+      <button class="discovery-card" type="button" data-filter-value="dogFilter:yes"><span>Mit Hund</span><small>Hundefreundlich</small></button>
+      <button class="discovery-card" type="button" data-filter-value="locationFilter:sea"><span>Am Meer</span><small>Küste &amp; Strand</small></button>
+      <button class="discovery-card" type="button" data-filter-toggle="adultOnlyFilter"><span>Adults only</span><small>Nur Erwachsene</small></button>
+      <button class="discovery-card" type="button" data-site-type="caravan_site"><span>Stellplätze</span><small>Wohnmobil &amp; Van</small></button>
+      <button class="discovery-card" type="button" data-style-value="quiet"><span>Ruhig</span><small>Klein &amp; entspannt</small></button>
+    </section>
+
+    <section class="filter-bar card" aria-label="Filter">
+      <div class="filter-overview">
+        <div class="filter-overview-copy"><strong>Filter</strong><span id="activeFilterText">Keine zusätzlichen Filter aktiv</span></div>
+        <div class="filter-overview-actions">
+          <button id="shareSearchBtn" class="ghost-btn share-search-btn" type="button">Suche teilen</button>
+          <span id="activeFilterCount" class="filter-count-badge">0 aktiv</span>
+          <select id="filterCategoryJump" aria-label="Zu Filterkategorie springen">
+            <option value="">Kategorie wählen</option>
+            <option value="target">Zielgruppe &amp; Regeln</option>
+            <option value="ages">Altersgruppen</option>
+            <option value="amenities">Ausstattung</option>
+            <option value="wellness">Wellness &amp; Sanitär</option>
+            <option value="familyfun">Pool, Kinder &amp; Freizeit</option>
+            <option value="food">Essen &amp; Versorgung</option>
+            <option value="location">Lage &amp; Aktivitäten</option>
+            <option value="comfort">Komfort, Mobilität &amp; Saison</option>
+            <option value="rentals">Mietunterkünfte</option>
+          </select>
+        </div>
+      </div>
+      <div class="filter-chips" aria-label="Beliebte Filter">
+        <button type="button" class="filter-chip" data-filter-toggle="familyFilter">Familie</button>
+        <button type="button" class="filter-chip" data-filter-toggle="babyFilter">Baby 0–2</button>
+        <button type="button" class="filter-chip" data-filter-toggle="toddlerFilter">Kleinkinder 3–5</button>
+        <button type="button" class="filter-chip" data-filter-toggle="childrenFilter">Kinder 6–12</button>
+        <button type="button" class="filter-chip" data-filter-toggle="teenFilter">Jugendliche 13–17</button>
+        <button type="button" class="filter-chip" data-filter-value="dogFilter:yes">Hund erlaubt</button>
+        <button type="button" class="filter-chip" data-filter-value="locationFilter:sea">Am Meer</button>
+        <button type="button" class="filter-chip" data-filter-toggle="adultOnlyFilter">18+</button>
+        <button type="button" class="filter-chip" data-filter-toggle="electricFilter">Strom</button>
+        <button type="button" class="filter-chip" data-filter-toggle="waterFilter">Wasser</button>
+        <button type="button" class="filter-chip" data-filter-toggle="privateBathroomFilter">Privatbad</button>
+        <button type="button" class="filter-chip" data-filter-toggle="saunaFilter">Sauna</button>
+        <button type="button" class="filter-chip" data-filter-toggle="privateHotTubFilter">Privat-Whirlpool</button>
+        <button type="button" class="filter-chip" data-filter-toggle="privatePoolFilter">Privat-Pool</button>
+        <button type="button" class="filter-chip" data-filter-toggle="rentalCaravanFilter">Mietwohnwagen</button>
+        <button type="button" class="filter-chip" data-filter-toggle="rentalTentFilter">Mietzelt</button>
+        <button type="button" class="filter-chip" data-filter-toggle="bungalowFilter">Bungalow</button>
+        <button type="button" class="filter-chip" data-filter-toggle="indoorPoolFilter">Hallenbad</button>
+        <button type="button" class="filter-chip" data-filter-toggle="paddlingPoolFilter">Kinderpool</button>
+        <button type="button" class="filter-chip" data-filter-toggle="directBeachFilter">Strandzugang</button>
+        <button type="button" class="filter-chip" data-filter-toggle="yearRoundFilter">Ganzjährig</button>
+        <button type="button" class="filter-chip" data-filter-toggle="websiteFilter">Original-Webseite</button>
+      </div>
+      <details class="filters">
+        <summary data-i18n="filters">Alle Filter</summary>
+        <div id="filter-target" class="filter-section-title">Zielgruppe &amp; Regeln</div>
+        <div class="filter-grid">
+          <label class="check"><input id="adultOnlyFilter" type="checkbox" /> <span>Nur Erwachsene</span></label>
+          <label class="check"><input id="fkkFilter" type="checkbox" /> <span>FKK / Nudismus</span></label>
+          <label class="check"><input id="familyFilter" type="checkbox" /> <span>Familienfreundlich</span></label>
+          <label class="check"><input id="websiteFilter" type="checkbox" /> <span>Nur mit Original-Webseite</span></label>
+          <label><span>Hunde</span><select id="dogFilter"><option value="all">Egal</option><option value="yes">Mit Hund</option><option value="no">Ohne Hund</option></select></label>
+          <label><span>Gebühr</span><select id="feeFilter"><option value="all">Egal</option><option value="free">Kostenlos</option><option value="paid">Kostenpflichtig</option></select></label>
+          <label><span>Mindestens Sterne*</span><select id="starsFilter"><option value="0">Egal</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option><option value="5">5</option></select></label>
+          <label><span>Lage</span><select id="locationFilter"><option value="all">Egal</option><option value="sea">Am Meer / Küste*</option><option value="inland">Inland*</option></select></label>
+          <label><span>Camping-Stil*</span><select id="styleFilter"><option value="all">Egal</option><option value="quiet">Ruhiger / kleiner Platz</option><option value="luxury">Komfort / Luxus</option><option value="glamping">Glamping / Mietunterkunft</option></select></label>
+          <label><span>Preis/Nacht*</span><select id="priceFilter"><option value="all">Egal</option><option value="20">bis 20 €</option><option value="40">bis 40 €</option><option value="60">bis 60 €</option></select></label>
+          <label><span>Sortierung</span><select id="sortSelect"><option value="name">Name</option><option value="stars">Sterne</option><option value="type">Platzart</option><option value="distance">Entfernung</option></select></label>
+        </div>
+
+        <div id="filter-ages" class="filter-section-title">Altersgruppen für Familien*</div>
+        <div class="age-filter-grid" aria-label="Altersgruppen">
+          <label class="age-filter-card"><input id="babyFilter" type="checkbox" /><span><strong>Baby</strong><small>0–2 Jahre</small></span></label>
+          <label class="age-filter-card"><input id="toddlerFilter" type="checkbox" /><span><strong>Kleinkinder</strong><small>3–5 Jahre</small></span></label>
+          <label class="age-filter-card"><input id="childrenFilter" type="checkbox" /><span><strong>Kinder</strong><small>6–12 Jahre</small></span></label>
+          <label class="age-filter-card"><input id="teenFilter" type="checkbox" /><span><strong>Jugendliche</strong><small>13–17 Jahre</small></span></label>
+        </div>
+
+        <div id="filter-amenities" class="filter-section-title">Ausstattung</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="electricFilter" type="checkbox" /> <span>Strom</span></label><label class="check"><input id="waterFilter" type="checkbox" /> <span>Trinkwasser</span></label>
+          <label class="check"><input id="toiletFilter" type="checkbox" /> <span>Toiletten</span></label><label class="check"><input id="showerFilter" type="checkbox" /> <span>Dusche</span></label>
+          <label class="check"><input id="dumpFilter" type="checkbox" /> <span>Entsorgung</span></label><label class="check"><input id="wifiFilter" type="checkbox" /> <span>WLAN</span></label>
+          <label class="check"><input id="wheelchairFilter" type="checkbox" /> <span>Barrierearm</span></label><label class="check"><input id="motorhomeFilter" type="checkbox" /> <span>Wohnmobil / Van</span></label>
+          <label class="check"><input id="caravanFilter" type="checkbox" /> <span>Wohnwagen</span></label><label class="check"><input id="tentsFilter" type="checkbox" /> <span>Zelte</span></label>
+          <label class="check"><input id="cabinsFilter" type="checkbox" /> <span>Mietunterkunft</span></label><label class="check"><input id="greyWaterFilter" type="checkbox" /> <span>Grauwasser</span></label>
+          <label class="check"><input id="chemicalToiletFilter" type="checkbox" /> <span>Chemie-WC</span></label><label class="check"><input id="playgroundFilter" type="checkbox" /> <span>Spielplatz</span></label>
+          <label class="check"><input id="poolFilter" type="checkbox" /> <span>Pool</span></label><label class="check"><input id="laundryFilter" type="checkbox" /> <span>Waschmöglichkeit</span></label>
+        </div>
+
+        <div id="filter-wellness" class="filter-section-title">Wellness &amp; Sanitär*</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="privateBathroomFilter" type="checkbox" /> <span>Privatbad / Privatsanitär</span></label>
+          <label class="check"><input id="saunaFilter" type="checkbox" /> <span>Sauna</span></label>
+          <label class="check"><input id="privateHotTubFilter" type="checkbox" /> <span>Privater Whirlpool</span></label>
+          <label class="check"><input id="privatePoolFilter" type="checkbox" /> <span>Privater Pool</span></label>
+          <label class="check"><input id="kidsBathFilter" type="checkbox" /> <span>Kinderbad / Kindersanitär</span></label>
+          <label class="check"><input id="babyBathFilter" type="checkbox" /> <span>Babybad / Babyraum</span></label>
+        </div>
+
+        <div id="filter-familyfun" class="filter-section-title">Pool, Kinder &amp; Freizeit*</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="indoorPoolFilter" type="checkbox" /> <span>Hallenbad / Indoor-Pool</span></label>
+          <label class="check"><input id="heatedPoolFilter" type="checkbox" /> <span>Beheizter Pool</span></label>
+          <label class="check"><input id="paddlingPoolFilter" type="checkbox" /> <span>Kinderpool / Planschbecken</span></label>
+          <label class="check"><input id="waterParkFilter" type="checkbox" /> <span>Wasserpark / Rutschen</span></label>
+          <label class="check"><input id="kidsClubFilter" type="checkbox" /> <span>Kinderclub</span></label>
+          <label class="check"><input id="teenClubFilter" type="checkbox" /> <span>Jugendclub</span></label>
+          <label class="check"><input id="animationFilter" type="checkbox" /> <span>Animation / Unterhaltung</span></label>
+        </div>
+
+        <div id="filter-food" class="filter-section-title">Essen &amp; Versorgung*</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="restaurantFilter" type="checkbox" /> <span>Restaurant am Platz</span></label>
+          <label class="check"><input id="breadServiceFilter" type="checkbox" /> <span>Brötchenservice</span></label>
+          <label class="check"><input id="supermarketFilter" type="checkbox" /> <span>Supermarkt / Shop am Platz</span></label>
+          <label class="check"><input id="gasExchangeFilter" type="checkbox" /> <span>Gasflaschen / Tausch</span></label>
+        </div>
+
+        <div id="filter-location" class="filter-section-title">Lage &amp; Aktivitäten*</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="directBeachFilter" type="checkbox" /> <span>Direkter Strandzugang</span></label>
+          <label class="check"><input id="privateBeachFilter" type="checkbox" /> <span>Privatstrand</span></label>
+          <label class="check"><input id="lakeAccessFilter" type="checkbox" /> <span>Direkter Seezugang</span></label>
+          <label class="check"><input id="fishingFilter" type="checkbox" /> <span>Angeln</span></label>
+          <label class="check"><input id="bikeRentalFilter" type="checkbox" /> <span>Fahrradverleih</span></label>
+          <label class="check"><input id="ebikeChargeFilter" type="checkbox" /> <span>E-Bike-Laden</span></label>
+        </div>
+
+        <div id="filter-comfort" class="filter-section-title">Komfort, Mobilität &amp; Saison*</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="evChargeFilter" type="checkbox" /> <span>E-Auto-Lader</span></label>
+          <label class="check"><input id="yearRoundFilter" type="checkbox" /> <span>Ganzjährig geöffnet</span></label>
+          <label class="check"><input id="accessibleSanitaryFilter" type="checkbox" /> <span>Barrierefreies Sanitär</span></label>
+          <label class="check"><input id="washingMachineFilter" type="checkbox" /> <span>Waschmaschine</span></label>
+          <label class="check"><input id="dryerFilter" type="checkbox" /> <span>Trockner</span></label>
+        </div>
+        <div class="search-grid compact-filter-grid">
+          <label><span>Min. Stellplatzgröße*</span><select id="pitchSizeFilter"><option value="0">Egal</option><option value="80">ab 80 m²</option><option value="100">ab 100 m²</option><option value="120">ab 120 m²</option><option value="150">ab 150 m²</option></select></label>
+          <label><span>Stellplatz-Lage*</span><select id="pitchExposureFilter"><option value="all">Egal</option><option value="shaded">Schattige Stellplätze</option><option value="sunny">Sonnige Stellplätze</option></select></label>
+        </div>
+
+        <div id="filter-rentals" class="filter-section-title">Mietunterkünfte*</div>
+        <div class="amenity-filter-row">
+          <label class="check"><input id="rentalCaravanFilter" type="checkbox" /> <span>Mietwohnwagen / Standwohnwagen</span></label>
+          <label class="check"><input id="rentalTentFilter" type="checkbox" /> <span>Mietzelte / Glampingzelte</span></label>
+          <label class="check"><input id="bungalowFilter" type="checkbox" /> <span>Bungalows / Hütten</span></label>
+        </div>
+        <div class="filter-actions"><button id="resetFiltersBtn" class="ghost-btn" type="button">Filter zurücksetzen</button></div>
+        <p class="filter-note">* Sterne sind vorhandene Platz-Klassifizierungen, keine Campingfinder-Nutzerbewertungen. Altersgruppen, Küstennähe, Stil, Preis, Wellness, Sanitär, Freizeit, Versorgung, Lage, Stellplatzgröße und Mietunterkünfte können nur aus vorhandenen oder eindeutig ableitbaren Quelldaten berücksichtigt werden. „Privat“ zählt nur bei einem ausdrücklichen privaten Hinweis. Stellplatzgröße, Sonne/Schatten, Kinder-/Jugendclub, Brötchenservice und ähnliche Merkmale werden nur bei konkreten Angaben erkannt. Fehlende Angaben werden nicht als vorhanden angenommen.</p>
+      </details>
+    </section>
+
+    <section id="routePlanner" class="route-card card">
+      <div class="section-title-row"><div><span class="section-kicker">ROUTENPLANER</span><h2 data-i18n="routeTitle">Campingplätze entlang deiner Route</h2><p data-i18n="routeIntro">Start und Ziel eingeben – Campingfinder sucht Plätze im gewählten Korridor.</p></div></div>
+      <div class="route-grid">
+        <label><span>Start</span><input id="routeStart" type="search" placeholder="z. B. Meinerzhagen" /></label>
+        <label><span>Ziel</span><input id="routeEnd" type="search" placeholder="z. B. Gardasee" /></label>
+        <label><span>Max. Abstand</span><select id="routeCorridor"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="25000">25 km</option></select></label>
+        <button id="routeSearchBtn" class="primary-btn">Route planen &amp; Plätze suchen</button>
+      </div>
+      <div class="route-quick-actions"><button id="routeUseLocationBtn" class="ghost-btn" type="button">Eigenen Standort als Start</button><button id="routeSwapBtn" class="ghost-btn" type="button">Start ↔ Ziel</button></div>
+      <div id="routeSummary" class="route-summary" hidden></div>
+    </section>
+
+
+    <section id="tripPlanner" class="trip-card card">
+      <div class="section-title-row">
+        <div><span class="section-kicker">REISEMAPPE</span><h2>Meine Camping-Reise</h2><p>Baue deine Reise aus gefundenen Plätzen auf, ordne Etappen und exportiere sie als GPX oder KML.</p></div>
+        <div class="trip-title-control">
+          <label><span>Reisename</span><input id="tripName" value="Meine Reise" maxlength="80" /></label>
+          <label><span>Reisebeginn</span><input id="tripStartDate" type="date" /></label>
+        </div>
+      </div>
+      <div class="trip-toolbar">
+        <button id="tripRouteBtn" class="primary-btn" type="button">Reiseroute anzeigen</button>
+        <button id="tripGpxBtn" class="secondary-btn" type="button">GPX exportieren</button>
+        <button id="tripKmlBtn" class="secondary-btn" type="button">KML exportieren</button>
+        <button id="tripIcsBtn" class="secondary-btn" type="button">Kalender (.ics)</button>
+        <button id="tripPrintBtn" class="secondary-btn" type="button">Reisemappe drucken / PDF</button>
+        <button id="tripClearBtn" class="ghost-btn" type="button">Reise leeren</button>
+      </div>
+      <div id="tripSummary" class="trip-summary">Noch keine Etappen. Füge einen Platz aus der Trefferliste über „+ Reise“ hinzu.</div>
+      <div id="tripStages" class="trip-stages"></div>
+    </section>
+
+    <section class="stats" aria-label="Suchstatus">
+      <div class="stat-card"><span class="stat-icon">⌖</span><div><strong id="resultCount">0</strong><span>Treffer</span></div></div>
+      <div class="stat-card"><span class="stat-icon">↗</span><div><strong id="websiteCount">0</strong><span>mit Webseite</span></div></div>
+      <div class="stat-card"><span class="stat-icon">☼</span><div><strong id="weatherCount">0</strong><span>mit Wetter</span></div></div>
+      <div class="stat-card"><span class="stat-icon">☆</span><div><strong id="favoriteCount">0</strong><span>Favoriten</span></div></div>
+    </section>
+
+    <section id="mapArea" class="content-grid" data-mobile-view="list">
+      <div class="mobile-view-toggle" role="group" aria-label="Ansicht wählen">
+        <button type="button" class="active" data-mobile-view="list">Liste</button>
+        <button type="button" data-mobile-view="map">Karte</button>
+      </div>
+      <div class="map-card card">
+        <div class="section-head"><div><span class="section-kicker">KARTE</span><h2>Europa entdecken</h2><p>Verschieben und anschließend den sichtbaren Kartenbereich durchsuchen.</p></div><div class="map-actions"><select id="mapLayerSelect" aria-label="Kartenstil"><option value="osm">Karte</option><option value="topo">Topografisch</option></select><button id="fitResultsBtn" class="ghost-btn">Alle Treffer</button></div></div>
+        <div id="map" aria-label="Karte mit Campingplätzen"></div>
+      </div>
+      <div class="results-card card">
+        <div class="section-head sticky-head"><div><span class="section-kicker">ERGEBNISSE</span><h2>Plätze</h2><p id="statusText">Wähle ein Land, einen Kartenbereich, deine Nähe oder eine Route.</p></div><button id="favoritesOnlyBtn" class="ghost-btn" aria-pressed="false">☆ Favoriten</button></div>
+        <div id="results" class="results-list" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="myPlaces" class="personal-card card">
+      <div class="section-title-row"><div><span class="section-kicker">PERSÖNLICH</span><h2>Meine Plätze</h2><p>Favoriten, besuchte Plätze, private Notizen und Camping-Tagebuch – lokal auf deinem Gerät.</p></div><button id="refreshMyPlacesBtn" class="ghost-btn">Aktualisieren</button></div>
+
+      <div class="profile-grid">
+        <div class="subcard family-profile-card">
+          <div class="subcard-title-row"><div><h3>Familienprofil</h3><p>Einmal speichern und passende Altersfilter automatisch setzen.</p></div><span class="profile-badge">lokal gespeichert</span></div>
+          <div class="family-profile-grid">
+            <label><span>Erwachsene</span><input id="familyAdults" type="number" min="1" max="12" value="2" /></label>
+            <label><span>Alter der Kinder</span><input id="familyChildAges" type="text" inputmode="numeric" placeholder="z. B. 2, 8, 14" /></label>
+            <label><span>Hund</span><select id="familyDog"><option value="no">Nein</option><option value="yes">Ja</option></select></label>
+            <label><span>Camping-Art</span><select id="familyVehicle"><option value="all">Egal</option><option value="motorhome">Wohnmobil</option><option value="van">Van</option><option value="caravan">Wohnwagen</option><option value="tent">Zelt</option></select></label>
+          </div>
+          <div id="familyProfileSummary" class="profile-summary"></div>
+          <div class="profile-actions"><button id="saveFamilyProfileBtn" class="secondary-btn" type="button">Profil speichern</button><button id="applyFamilyProfileBtn" class="primary-btn" type="button">Profil auf Suche anwenden</button></div>
+          <p class="filter-note">Die Altersfilter werden nur mit vorhandenen Platzdaten abgeglichen. Fehlende Angaben werden nicht als Eignung gewertet.</p>
+        </div>
+        <div class="subcard offline-card">
+          <div class="subcard-title-row"><div><h3>Offline-Reisemappe</h3><p>Favoriten, Reise, Profil und letzte Suche auf diesem Gerät sichern.</p></div><span id="networkStatus" class="network-badge">online</span></div>
+          <div id="lastSearchInfo" class="offline-status">Noch keine lokale Suchkopie vorhanden.</div>
+          <div class="offline-actions">
+            <button id="loadLastSearchBtn" class="secondary-btn" type="button">Letzte Suche laden</button>
+            <button id="exportTravelFolderBtn" class="secondary-btn" type="button">Reisemappe exportieren</button>
+            <label class="import-button">Reisemappe importieren<input id="importTravelFolderInput" type="file" accept="application/json,.json" /></label>
+          </div>
+          <p class="filter-note">Die App-Oberfläche, Favoriten und gespeicherten Reisedaten funktionieren offline. Neue Karten-, Wetter- und Platzdaten benötigen eine Internetverbindung.</p>
+        </div>
+      </div>
+
+      <div class="personal-grid">
+        <div class="subcard"><h3>Favoritenlisten</h3><div class="inline-form"><input id="newListName" placeholder="z. B. Nordsee 2027" /><button id="addListBtn" class="secondary-btn">Liste anlegen</button></div><div id="favoriteLists"></div></div>
+        <div class="subcard"><h3>Besuchte Plätze</h3><div id="visitedPlaces" class="saved-list"></div></div>
+      </div>
+      <div class="subcard journal-card"><h3>Camping-Tagebuch</h3><form id="journalForm" class="journal-form">
+        <label><span>Datum</span><input id="journalDate" type="date" required /></label><label><span>Platz</span><input id="journalPlace" required placeholder="Campingplatz / Stellplatz" /></label>
+        <label><span>Kosten gesamt (€)</span><input id="journalCost" type="number" min="0" step="0.01" /></label><label><span>Bewertung</span><select id="journalRating"><option value="">–</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+        <label class="journal-note"><span>Notiz</span><textarea id="journalNote" rows="3" placeholder="Was war gut? Was willst du dir merken?"></textarea></label>
+        <label><span>Foto (optional)</span><input id="journalPhoto" type="file" accept="image/*" /></label><button class="primary-btn" type="submit">Eintrag speichern</button>
+      </form><p class="filter-note">Fotos werden lokal im Browser gespeichert. Sehr große Bilder werden automatisch verkleinert.</p><div id="journalEntries" class="journal-list"></div></div>
+    </section>
+
+    <section id="helpers" class="helpers-card card">
+      <div class="section-title-row"><div><span class="section-kicker">CAMPING-HELFER</span><h2>Praktisch unterwegs</h2><p>Kostenrechner, Packliste, Abfahrtscheck und Notfallinfos.</p></div></div>
+      <div class="helper-grid">
+        <div class="subcard"><h3>Aufenthalts-Kostenrechner</h3><div class="calc-grid">
+          <label><span>Nächte</span><input id="calcNights" type="number" min="1" value="7" /></label><label><span>Platz/Nacht €</span><input id="calcPitch" type="number" min="0" step="0.01" value="30" /></label>
+          <label><span>Erwachsene</span><input id="calcAdults" type="number" min="0" value="2" /></label><label><span>€/Erw./Nacht</span><input id="calcAdultPrice" type="number" min="0" step="0.01" value="0" /></label>
+          <label><span>Kinder</span><input id="calcChildren" type="number" min="0" value="2" /></label><label><span>€/Kind/Nacht</span><input id="calcChildPrice" type="number" min="0" step="0.01" value="0" /></label>
+          <label><span>Hund</span><input id="calcDogs" type="number" min="0" value="0" /></label><label><span>€/Hund/Nacht</span><input id="calcDogPrice" type="number" min="0" step="0.01" value="0" /></label>
+          <label><span>Strom pauschal/Nacht €</span><input id="calcElectric" type="number" min="0" step="0.01" value="0" /></label>
+        </div><div id="calcResult" class="calc-result">Gesamt: 210,00 €</div></div>
+        <div class="subcard budget-card"><div class="subcard-title-row"><div><h3>Reisebudget</h3><p>Fahrt, Camping, Verpflegung, Maut und Extras gemeinsam kalkulieren.</p></div><span class="profile-badge">lokal</span></div>
+          <div class="budget-grid">
+            <label><span>Fahrstrecke gesamt (km)</span><input id="budgetDistance" type="number" min="0" step="1" value="1000" /></label>
+            <label><span>Verbrauch (l/100 km)</span><input id="budgetConsumption" type="number" min="0" step="0.1" value="8" /></label>
+            <label><span>Kraftstoffpreis €/l</span><input id="budgetFuelPrice" type="number" min="0" step="0.01" value="1.75" /></label>
+            <label><span>Reisetage</span><input id="budgetDays" type="number" min="1" step="1" value="7" /></label>
+            <label><span>Camping gesamt €</span><input id="budgetCamping" type="number" min="0" step="0.01" value="210" /></label>
+            <label><span>Maut/Fähre/Parken €</span><input id="budgetTolls" type="number" min="0" step="0.01" value="0" /></label>
+            <label><span>Verpflegung pro Tag €</span><input id="budgetFoodDay" type="number" min="0" step="0.01" value="40" /></label>
+            <label><span>Sonstige Extras €</span><input id="budgetExtras" type="number" min="0" step="0.01" value="0" /></label>
+          </div>
+          <div id="budgetResult" class="budget-result" aria-live="polite"></div>
+          <div class="budget-actions"><button id="budgetFromTripBtn" class="secondary-btn" type="button">Strecke aus Reise übernehmen</button><button id="budgetResetBtn" class="ghost-btn" type="button">Budget zurücksetzen</button></div>
+        </div>
+        <div class="subcard travel-stats-card"><div class="subcard-title-row"><div><h3>Meine Camping-Statistik</h3><p>Nur aus deinen lokal gespeicherten Daten berechnet.</p></div><span class="profile-badge">privat &amp; lokal</span></div><div id="travelStats" class="travel-stats-grid"></div></div>
+        <div class="subcard"><h3>Packliste</h3><label><span>Camping-Art</span><select id="packingType"><option value="motorhome">Wohnmobil</option><option value="caravan">Wohnwagen</option><option value="van">Van</option><option value="tent">Zelt</option></select></label><div id="packingList" class="checklist"></div></div>
+        <div class="subcard"><h3>Abfahrtscheck</h3><div id="departureList" class="checklist"></div><button id="resetDepartureBtn" class="ghost-btn">Check zurücksetzen</button></div>
+        <div class="subcard"><h3>Notfall &amp; Standort</h3><p><strong>112</strong> ist der einheitliche Notruf in der EU. Außerhalb der EU können andere Nummern gelten.</p><button id="emergencyLocationBtn" class="secondary-btn">Eigene Koordinaten anzeigen</button><p id="emergencyLocation" class="coordinate-output"></p><a class="mini-btn" href="https://www.meteoalarm.org/" target="_blank" rel="noopener noreferrer">Offizielle Wetterwarnungen Europa ↗</a></div>
+      </div>
+    </section>
+
+    <section class="trust-card card">
+      <div><span class="section-kicker">TRANSPARENT</span><h2>Daten &amp; Genauigkeit</h2></div>
+      <div class="trust-grid">
+        <div><strong>Platzdaten</strong><p>OpenStreetMap. Nicht jeder Platz und nicht jedes Merkmal ist überall vollständig erfasst.</p></div>
+        <div><strong>Wetter</strong><p>Aktuelles Wetter und Vorhersagen über Open-Meteo. Wetter kann sich kurzfristig ändern.</p></div>
+        <div><strong>Webseiten</strong><p>Original-Webseiten werden nur angezeigt, wenn sie im Quelldatensatz vorhanden sind.</p></div>
+        <div><strong>Privatdaten</strong><p>Favoriten, Notizen, Checklisten und Tagebuch bleiben lokal in diesem Browser.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div><strong>Campingfinder</strong><span>© 2026 Marcel Hentschel · Version 13</span></div>
+    <nav aria-label="Rechtliches"><button type="button" data-legal="imprint">Impressum</button><button type="button" data-legal="privacy">Datenschutz</button><button type="button" data-legal="sources">Datenquellen</button><a class="footer-link" href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Kartenfehler melden ↗</a></nav>
+  </footer>
+
+  <div id="compareBar" class="compare-bar" hidden>
+    <div><strong id="compareCount">0</strong> Plätze zum Vergleich ausgewählt</div>
+    <div><button id="compareClearBtn" class="ghost-btn" type="button">Leeren</button><button id="compareOpenBtn" class="primary-btn" type="button">Vergleichen</button></div>
+  </div>
+
+  <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
+    <a href="#finder"><span>⌕</span><small>Entdecken</small></a>
+    <a href="#mapArea"><span>⌖</span><small>Karte</small></a>
+    <a href="#tripPlanner"><span>↝</span><small>Reise</small></a>
+    <a href="#myPlaces"><span>☆</span><small>Favoriten</small></a>
+    <a href="#helpers"><span>☷</span><small>Helfer</small></a>
+  </nav>
+
+  <dialog id="detailDialog"><div class="dialog-shell"><button id="closeDialogBtn" class="dialog-close" aria-label="Schließen">×</button><div id="detailContent"></div></div></dialog>
+  <dialog id="compareDialog"><div class="dialog-shell compare-dialog-shell"><button id="closeCompareBtn" class="dialog-close" aria-label="Schließen">×</button><div id="compareContent"></div></div></dialog>
+  <dialog id="legalDialog"><div class="dialog-shell legal-dialog-shell"><button id="closeLegalBtn" class="dialog-close" aria-label="Schließen">×</button><div id="legalContent"></div></div></dialog>
+  <dialog id="shareDialog"><div class="dialog-shell share-dialog-shell"><button id="closeShareBtn" class="dialog-close" aria-label="Schließen">×</button><div class="detail-title"><span class="section-kicker">TEILEN</span><h2>Diese Suche teilen</h2><p>Land, Suchtext und aktive Filter werden direkt im Link gespeichert. Es ist kein Konto nötig.</p></div><div class="share-link-box"><input id="shareUrlInput" type="text" readonly /><button id="copyShareUrlBtn" class="primary-btn" type="button">Link kopieren</button></div><div class="qr-panel"><div id="shareQr" class="share-qr" aria-label="QR-Code für die Suche"></div><p id="shareQrNote" class="filter-note">QR-Code wird lokal im Browser erzeugt.</p></div></div></dialog>
+
+  <section id="printTravelSheet" class="print-travel-sheet" aria-hidden="true"></section>
+
+  <template id="emptyTemplate"><div class="empty-state"><div class="empty-icon">△</div><h3>Keine passenden Plätze</h3><p>Ändere Filter oder vergrößere den Kartenbereich.</p></div></template>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script src="qr-local.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
