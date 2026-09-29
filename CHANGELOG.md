@@ -1,3 +1,13 @@
+# v30 – Schnellere Suche & robuste Routenstopps
+
+- Ländersuche lädt Teilbereiche jetzt mit maximal zwei parallelen Abfragen statt streng nacheinander.
+- Kürzere Overpass-Zeitlimits und schnellerer Serverwechsel verhindern minutenlanges Hängen.
+- Zwischenübernachtungen suchen per Bounding-Box statt teurer großer `around`-Abfragen.
+- Zwei Übernachtungsbereiche werden parallel gesucht; bei mehr Stopps gilt ein schonendes Limit von zwei gleichzeitigen Abfragen.
+- Wohnwagen-Suche lädt normale Campingplätze breit und prüft die Fahrzeugzulässigkeit anschließend lokal; reine Wohnmobilstellplätze bleiben ohne ausdrückliche Wohnwagenfreigabe ausgeschlossen.
+- Bereits geladene Campingplätze werden für Routenstopps wiederverwendet.
+- Fehlermeldungen unterscheiden nun zwischen „kein geeigneter Platz“ und „Datenserver nicht erreichbar“.
+
 # Campingfinder v29
 
 - Overpass-Serverliste auf aktuell erreichbare freie Instanzen umgestellt.

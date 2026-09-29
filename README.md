@@ -1,4 +1,6 @@
-# Campingfinder v29
+# Campingfinder
+
+**Version 30** – schnellere Länder-/Küstensuche und robuste automatische Routenstopps. v29
 
 **Aktuelle Version: v29** – Routenplaner mit automatisch gewählten nächstgelegenen Übernachtungsplätzen und Neuberechnung der Route über diese Plätze.
 

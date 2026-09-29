@@ -1,4 +1,4 @@
-/* Campingfinder v29 – client-side Europe camping search */
+/* Campingfinder v30 – client-side Europe camping search */
 
 // Current public, free Overpass mirrors. Keep the retired kumi/lz4 hosts out:
 // kumi.systems moved to private.coffee and the old lz4 host can hang before timing out.
@@ -579,11 +579,11 @@ function makeBboxGrid(bbox) {
   const latKm = Math.max(1, (n-s) * 111);
   const lonKm = Math.max(1, (e-w) * 111 * Math.max(.25, Math.cos(midLat*Math.PI/180)));
   const approxAreaKm2 = latKm * lonKm;
-  const targetCells = Math.max(1, Math.min(20, Math.ceil(approxAreaKm2 / 30000)));
+  const targetCells = Math.max(1, Math.min(12, Math.ceil(approxAreaKm2 / 45000)));
   const aspect = Math.max(.25, Math.min(4, lonKm/latKm));
   let cols = Math.max(1, Math.round(Math.sqrt(targetCells * aspect)));
   let rows = Math.max(1, Math.ceil(targetCells / cols));
-  while (rows * cols > 20) {
+  while (rows * cols > 12) {
     if (cols >= rows && cols > 1) cols--; else if (rows > 1) rows--; else break;
   }
   const cells=[];
@@ -685,53 +685,46 @@ function distanceToCoastKm(lat, lon, coastWays, stopAtKm = 30) {
 async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
   progress?.('attempt');
   const bboxExpr = bboxFilter(bbox);
-  // Important: country membership is filtered locally with the Nominatim country polygon.
-  // Overpass only receives the small bbox. This avoids the unreliable area+bbox combination.
-  const query = `[out:json][timeout:13];\n(${overpassTypeFragments(bboxExpr)});\nout body center qt;`;
+  const query = `[out:json][timeout:9];\n(${overpassTypeFragments(bboxExpr)});\nout body center qt;`;
   try {
-    const data = await overpass(query, { timeoutMs: 12000, maxEndpoints: 4 });
+    // Small tiles should answer quickly. Two mirrors are enough before the tile is subdivided.
+    const data = await overpass(query, { timeoutMs: 8000, maxEndpoints: 2 });
     progress?.('success', data.elements?.length || 0);
     return { elements: data.elements || [], failed: 0 };
   } catch (err) {
-    if (depth < 2 && retriableOverpassError(err)) {
+    if (depth < 1 && retriableOverpassError(err)) {
       const halves = splitBbox(bbox);
-      const combined=[];
-      let failed=0;
-      for (const half of halves) {
-        const part = await queryCountryTile(countryCode, half, depth+1, progress);
-        combined.push(...part.elements);
-        failed += part.failed;
-        await new Promise(resolve => setTimeout(resolve, 90));
-      }
-      return { elements: combined, failed };
+      const parts = await Promise.all(halves.map(half => queryCountryTile(countryCode, half, depth+1, progress)));
+      return {
+        elements: parts.flatMap(part => part.elements || []),
+        failed: parts.reduce((sum, part) => sum + Number(part.failed || 0), 0)
+      };
     }
     progress?.('failed');
     return { elements: [], failed: 1, error: err };
   }
 }
-
 async function queryCoastTile(bbox, depth = 0) {
   const expanded = expandBboxKm(bbox, 38);
-  const query = `[out:json][timeout:11];\nway["natural"="coastline"]${bboxFilter(expanded)};\nout geom qt;`;
+  const query = `[out:json][timeout:8];\nway["natural"="coastline"]${bboxFilter(expanded)};\nout geom qt;`;
   try {
-    const data = await overpass(query, { timeoutMs: 10000, maxEndpoints: 4 });
+    const data = await overpass(query, { timeoutMs: 7000, maxEndpoints: 2 });
     return data.elements || [];
   } catch (err) {
     if (depth < 1 && retriableOverpassError(err)) {
-      const halves=splitBbox(expanded), all=[];
-      for (const half of halves) {
+      const halves=splitBbox(expanded);
+      const parts=await Promise.all(halves.map(async half=>{
         try {
-          const q=`[out:json][timeout:12];\nway["natural"="coastline"]${bboxFilter(half)};\nout geom qt;`;
-          const d=await overpass(q,{timeoutMs:9000,maxEndpoints:4});
-          all.push(...(d.elements||[]));
-        } catch {}
-      }
-      return all;
+          const q=`[out:json][timeout:7];\nway["natural"="coastline"]${bboxFilter(half)};\nout geom qt;`;
+          const d=await overpass(q,{timeoutMs:6500,maxEndpoints:2});
+          return d.elements||[];
+        } catch { return []; }
+      }));
+      return parts.flat();
     }
     return [];
   }
 }
-
 async function filterRawByLocationMode(elements, bbox, mode = '', coastRadiusKm = 30) {
   if (!['sea','inland'].includes(mode)) return elements || [];
   const coastWays = await queryCoastTile(bbox);
@@ -751,6 +744,21 @@ async function filterRawByLocationMode(elements, bbox, mode = '', coastRadiusKm 
   });
 }
 
+async function mapWithConcurrency(items, limit, worker) {
+  const input = Array.from(items || []);
+  const results = new Array(input.length);
+  let next = 0;
+  const runners = Array.from({length: Math.max(1, Math.min(Number(limit)||1, input.length || 1))}, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= input.length) return;
+      results[i] = await worker(input[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 async function searchCountryChunked(countryCode, countryName, rawBbox, geometry = null, options = {}) {
   const bbox = clampEuropeBbox(rawBbox);
   const tiles = makeBboxGrid(bbox);
@@ -758,25 +766,28 @@ async function searchCountryChunked(countryCode, countryName, rawBbox, geometry 
   const locationMode = ['sea','inland'].includes(options.locationMode) ? options.locationMode : (options.coastMode ? 'sea' : '');
   const coastMode = locationMode === 'sea';
   const coastRadiusKm = Number(options.coastRadiusKm || 30);
-  let attempted=0, successful=0, failed=0;
+  let attempted=0, successful=0, failed=0, completed=0;
   const progress = (kind) => {
     if (kind === 'attempt') attempted++;
     if (kind === 'success') successful++;
   };
-  for (let i=0;i<tiles.length;i++) {
-    els.status.textContent = `${countryName}${coastMode?' · Küste':''}: Teilgebiet ${i+1} von ${tiles.length} · ${rawById.size} Plätze gefunden`;
-    const part = await queryCountryTile(countryCode, tiles[i], 0, progress);
+
+  // Two simultaneous small requests are much faster than waiting for every tile serially,
+  // while staying deliberately conservative with public Overpass infrastructure.
+  const parts = await mapWithConcurrency(tiles, 2, async (tile, index) => {
+    const part = await queryCountryTile(countryCode, tile, 0, progress);
     let candidates = filterRawElementsByGeometry(part.elements, geometry);
     if (locationMode && candidates.length) {
-      candidates = await filterRawByLocationMode(candidates, tiles[i], locationMode, coastRadiusKm);
+      candidates = await filterRawByLocationMode(candidates, tile, locationMode, coastRadiusKm);
     }
     for (const el of candidates) rawById.set(`${el.type}/${el.id}`, el);
-    failed += part.failed;
-    if (i < tiles.length-1) await new Promise(resolve => setTimeout(resolve, 120));
-  }
+    completed++;
+    els.status.textContent = `${countryName}${coastMode?' · Küste':''}: ${completed}/${tiles.length} Teilbereiche · ${rawById.size} Plätze gefunden`;
+    return part;
+  });
+  failed = parts.reduce((sum, part) => sum + Number(part?.failed || 0), 0);
   return { elements:[...rawById.values()], failed, attempted, successful, bbox, coastMode, locationMode, coastRadiusKm };
 }
-
 async function geocodeCountryBoundary(countryName, countryCode) {
   const code=String(countryCode||'').toUpperCase();
   if (state.countryBoundaries?.has(code)) return state.countryBoundaries.get(code);
@@ -1174,21 +1185,21 @@ function vehicleEligibility(place, vehicle=routeVehicleValue()) {
   }
   return { allowed:true, confirmed:false, reason:'Fahrzeugregeln prüfen' };
 }
-function routeVehicleQueryParts(around, vehicle=routeVehicleValue()) {
+function routeVehicleQueryParts(areaExpr, vehicle=routeVehicleValue()) {
   if (vehicle === 'caravan') return [
-    `nwr["tourism"="camp_site"]["caravans"!="no"]${around};`,
-    `nwr["tourism"="caravan_site"]["caravans"="yes"]${around};`
+    `nwr["tourism"="camp_site"]${areaExpr};`,
+    `nwr["tourism"="caravan_site"]["caravans"="yes"]${areaExpr};`
   ];
   if (vehicle === 'motorhome' || vehicle === 'van') return [
-    `nwr["tourism"="camp_site"]["motorhome"!="no"]${around};`,
-    `nwr["tourism"="caravan_site"]["motorhome"!="no"]${around};`
+    `nwr["tourism"="camp_site"]${areaExpr};`,
+    `nwr["tourism"="caravan_site"]${areaExpr};`
   ];
   if (vehicle === 'tent') return [
-    `nwr["tourism"="camp_site"]["tents"!="no"]${around};`,
-    `nwr["tourism"="caravan_site"]["tents"="yes"]${around};`
+    `nwr["tourism"="camp_site"]${areaExpr};`,
+    `nwr["tourism"="caravan_site"]["tents"="yes"]${areaExpr};`
   ];
-  if (vehicle === 'car') return [`nwr["tourism"="camp_site"]["motor_vehicle"!="no"]${around};`];
-  return [`nwr["tourism"="camp_site"]${around};`,`nwr["tourism"="caravan_site"]${around};`];
+  if (vehicle === 'car') return [`nwr["tourism"="camp_site"]${areaExpr};`];
+  return [`nwr["tourism"="camp_site"]${areaExpr};`,`nwr["tourism"="caravan_site"]${areaExpr};`];
 }
 function routeVehicleLabel(vehicle=routeVehicleValue()) {
   return {motorhome:'Wohnmobil',van:'Van / Campervan',caravan:'Wohnwagen',car:'Auto',tent:'Zelt'}[vehicle] || 'Fahrzeug';
@@ -1216,73 +1227,129 @@ function routeStopSearchParts(stopPoints, corridor) {
 }
 
 function routeStopRadiusPlan(corridor) {
-  const base=Math.max(2000, Number(corridor || 10000));
+  const base=Math.max(5000, Number(corridor || 10000));
+  // Three useful stages instead of six slow sequential radius queries.
   return [...new Set([
     base,
-    Math.max(base, 25000),
-    Math.max(base, 50000),
-    Math.max(base, 100000),
-    Math.max(base, 150000),
-    Math.max(base, 200000)
+    Math.max(base, 60000),
+    Math.max(base, 160000)
   ])].sort((a,b)=>a-b);
 }
 
-async function findNearestRouteStopPlace(stop, stopIndex, corridor, usedKeys = new Set()) {
+function bboxAroundPoint(lat, lon, radiusMeters) {
+  const km=Math.max(1, Number(radiusMeters||0)/1000);
+  const latPad=km/111;
+  const lonPad=km/(111*Math.max(.22,Math.cos(Number(lat)*Math.PI/180)));
+  return [Number(lat)-latPad, Number(lon)-lonPad, Number(lat)+latPad, Number(lon)+lonPad];
+}
+
+function routeCandidateFromRaw(raw, stop, vehicle, radius) {
+  const place=normalizePlace(raw);
+  if(!place) return null;
+  const eligibility=vehicleEligibility(place,vehicle);
+  if(!eligibility.allowed) return null;
+  const distanceKm=haversineKm(stop.lat,stop.lon,place.lat,place.lon);
+  if(distanceKm > radius/1000*1.03) return null;
+  return { raw, place, eligibility, distanceKm, vehicleRank:eligibility.confirmed?0:1 };
+}
+
+function rawElementFromPlace(place) {
+  if(!place) return null;
+  const raw={ type:place.osmType || 'node', id:place.osmId, tags:{...(place.tags||{})} };
+  if(raw.type==='node'){ raw.lat=place.lat; raw.lon=place.lon; }
+  else raw.center={lat:place.lat,lon:place.lon};
+  return raw;
+}
+
+function localRouteStopCandidates(stop, vehicle, radius) {
+  const seen=new Set();
+  return (state.allPlaces || []).map(place=>{
+    if(!place || seen.has(place.key)) return null;
+    seen.add(place.key);
+    const eligibility=vehicleEligibility(place,vehicle);
+    if(!eligibility.allowed) return null;
+    const distanceKm=haversineKm(stop.lat,stop.lon,place.lat,place.lon);
+    if(distanceKm > radius/1000) return null;
+    return { raw:rawElementFromPlace(place), place, eligibility, distanceKm, vehicleRank:eligibility.confirmed?0:1 };
+  }).filter(Boolean);
+}
+
+async function findRouteStopCandidateList(stop, stopIndex, corridor) {
   const radii=routeStopRadiusPlan(corridor);
-  let lastError=null;
+  const vehicle=routeVehicleValue();
+  const collected=new Map();
+  let lastError=null, hadSuccessfulQuery=false;
+
   for (const radius of radii) {
-    els.status.textContent=`Übernachtung ${stopIndex+1}: nächster Platz wird bis ${Math.round(radius/1000)} km gesucht …`;
-    const query=`[out:json][timeout:24];\n(${routeStopSearchParts([stop],radius)});\nout body center qt;`;
+    els.status.textContent=`Übernachtung ${stopIndex+1}: Campingplätze bis ${Math.round(radius/1000)} km werden gesucht …`;
+
+    // Reuse places already loaded in the app before making another network request.
+    for(const candidate of localRouteStopCandidates(stop,vehicle,radius)) collected.set(candidate.place.key,candidate);
+    if(collected.size) break;
+
+    const bbox=bboxFilter(bboxAroundPoint(stop.lat,stop.lon,radius));
+    const query=`[out:json][timeout:11];\n(${routeVehicleQueryParts(bbox,vehicle).join('\n')});\nout body center qt;`;
     try {
-      const data=await overpass(query,{timeoutMs:22000,maxEndpoints:3});
-      const vehicle=routeVehicleValue();
-      const candidates=(data.elements || []).map(el=>({raw:el,place:normalizePlace(el)})).filter(x=>x.place).map(x=>({...x,eligibility:vehicleEligibility(x.place,vehicle)})).filter(x=>x.eligibility.allowed);
-      if (!candidates.length) continue;
-      candidates.forEach(x=>{x.distanceKm=haversineKm(stop.lat,stop.lon,x.place.lat,x.place.lon);x.vehicleRank=x.eligibility.confirmed?0:1;});
-      candidates.sort((a,b)=>a.vehicleRank-b.vehicleRank || a.distanceKm-b.distanceKm || a.place.name.localeCompare(b.place.name,state.language));
-      const best=candidates.find(x=>!usedKeys.has(x.place.key));
-      if (!best) continue;
-      return {
-        ...stop,
-        lat:best.place.lat,
-        lon:best.place.lon,
-        targetLat:stop.lat,
-        targetLon:stop.lon,
-        place:best.place,
-        raw:best.raw,
-        placeKey:best.place.key,
-        name:best.place.name,
-        distanceFromIdealKm:best.distanceKm,
-        searchRadius:radius,
-        vehicleEligibility:best.eligibility,
-        stopIndex:stopIndex+1
-      };
+      const data=await overpass(query,{timeoutMs:9500,maxEndpoints:2});
+      hadSuccessfulQuery=true;
+      for(const raw of data.elements || []) {
+        const candidate=routeCandidateFromRaw(raw,stop,vehicle,radius);
+        if(candidate) collected.set(candidate.place.key,candidate);
+      }
+      if(collected.size) break;
     } catch (err) {
       lastError=err;
     }
   }
-  return { ...stop, stopIndex:stopIndex+1, error:lastError || new Error('Kein Campingplatz gefunden.') };
+
+  const candidates=[...collected.values()];
+  // "Nächster Platz" means distance first; explicit vehicle confirmation only breaks ties.
+  candidates.sort((a,b)=>a.distanceKm-b.distanceKm || a.vehicleRank-b.vehicleRank || a.place.name.localeCompare(b.place.name,state.language));
+  return { stop, stopIndex, candidates, lastError, hadSuccessfulQuery };
 }
 
 async function resolveRouteStopPlaces(stopPoints, corridor) {
-  const resolved=[];
   const rawById=new Map();
   const usedKeys=new Set();
   let failed=0;
-  for (let i=0;i<stopPoints.length;i++) {
-    const found=await findNearestRouteStopPlace(stopPoints[i],i,corridor,usedKeys);
-    if (found.place && found.raw) {
-      resolved.push(found);
-      usedKeys.add(found.placeKey);
-      rawById.set(`${found.raw.type}/${found.raw.id}`,found.raw);
-    } else {
+
+  // Search at most two overnight areas simultaneously. This makes 2-stop routes roughly twice as fast
+  // without flooding the public data services on routes with many overnights.
+  const searches=await mapWithConcurrency(stopPoints, 2, (stop,index)=>findRouteStopCandidateList(stop,index,corridor));
+  const resolved=[];
+
+  for(const search of searches) {
+    const best=search.candidates.find(candidate=>!usedKeys.has(candidate.place.key));
+    if(!best) {
       failed++;
-      resolved.push(found);
+      resolved.push({
+        ...search.stop,
+        stopIndex:search.stopIndex+1,
+        error:search.lastError || new Error(search.hadSuccessfulQuery ? 'Kein geeigneter Campingplatz im erweiterten Bereich gefunden.' : 'Campingplatz-Datenserver nicht erreichbar.'),
+        dataUnavailable:!search.hadSuccessfulQuery
+      });
+      continue;
     }
+    usedKeys.add(best.place.key);
+    if(best.raw) rawById.set(`${best.raw.type}/${best.raw.id}`,best.raw);
+    resolved.push({
+      ...search.stop,
+      lat:best.place.lat,
+      lon:best.place.lon,
+      targetLat:search.stop.lat,
+      targetLon:search.stop.lon,
+      place:best.place,
+      raw:best.raw,
+      placeKey:best.place.key,
+      name:best.place.name,
+      distanceFromIdealKm:best.distanceKm,
+      searchRadius:Math.ceil(best.distanceKm*1000),
+      vehicleEligibility:best.eligibility,
+      stopIndex:search.stopIndex+1
+    });
   }
   return { stops:resolved, elements:[...rawById.values()], failed };
 }
-
 function nearestRouteStop(place, stopPoints) {
   let best=null;
   stopPoints.forEach((stop,index)=>{
@@ -1395,7 +1462,9 @@ async function searchRoute() {
       resolvedStopSearch=await resolveRouteStopPlaces(roughStops,corridor);
       const missing=resolvedStopSearch.stops.filter(stop=>!stop.place);
       if (missing.length) {
-        throw new Error(`Für ${missing.length} Übernachtungsstopp${missing.length===1?'':'s'} wurde selbst im erweiterten Suchbereich kein Camping- oder Wohnmobilplatz gefunden.`);
+        const unavailable=missing.filter(stop=>stop.dataUnavailable).length;
+        if(unavailable===missing.length) throw new Error('Die freien Campingplatz-Datenserver waren für die Übernachtungsstopps nicht erreichbar. Bitte die Route erneut starten; Campingfinder wechselt automatisch zwischen den Servern.');
+        throw new Error(`Für ${missing.length} Übernachtungsstopp${missing.length===1?'':'s'} wurde auch im erweiterten Bereich kein für ${routeVehicleLabel()} geeigneter Platz gefunden.`);
       }
       realStops=resolvedStopSearch.stops;
       state.routeAutoStopPlaces=realStops;
