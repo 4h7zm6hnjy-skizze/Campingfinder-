@@ -1,4 +1,4 @@
-const CACHE = 'campingfinder-v19';
+const CACHE = 'campingfinder-v25';
 const LOCAL_ASSETS = [
   './', './index.html', './styles.css', './app.js', './qr-local.js', './manifest.webmanifest',
   './logo-campingfinder.png', './logo-campingfinder-700.webp',

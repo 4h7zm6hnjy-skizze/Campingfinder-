@@ -1,6 +1,6 @@
-# Campingfinder
+# Campingfinder v25
 
-**Aktuelle Version: v15** – robuste Länder-Suche mit automatischer Teilgebietsabfrage statt großer Einzelabfragen.
+**Aktuelle Version: v25** – geprüfte Stabilitätsversion mit geografischer Meer-/Inland-Suche, vollständigerer intelligenter Ländersuche und robuster Stoppsuche im Routenplaner.
 
 **Slogan:** Ganz Europa gehört dir.
 
@@ -14,8 +14,8 @@ Die intelligente Suche erkennt Kombinationen wie „Frankreich und Meer“. Bei 
 - Europaweite Suche nach Land, Ort, Region oder Platzname
 - Campingplätze und Wohnmobilstellplätze
 - Schnellwahl für Camping, Wohnmobil, Van, Wohnwagen, Zelt und Glamping
-- Nähe-Suche mit 10 / 25 / 50 / 100 / 250 km
-- Routensuche mit 5 / 10 / 25 km Korridor
+- Nähe-Suche mit 10 / 25 / 50 / 100 / 150 / 200 / 250 / 300 / 400 / 500 / 600 km
+- Routensuche mit 0–8 Zwischenübernachtungen und 2 / 5 / 10 / 25 km Suchradius an den Stopps
 - Karten- und Topografieansicht mit automatischer Treffer-Clusterung
 - Aktuelles Wetter und 7-Tage-Vorschau
 - Umfangreiche, gruppierte Filter
@@ -184,3 +184,19 @@ Ein Klick auf einen Treffer in der Ergebnisliste fokussiert den Platz direkt auf
 
 ## Mehrdeutige Ortsnamen
 Wenn ein Ort oder eine Stadt mehrfach vorkommt, zeigt Campingfinder vor der Suche eine Auswahl mit Ort, Region/Bundesland und Land. Erst die ausgewählte Position wird für die Campingplatzsuche verwendet.
+
+### v22 – Länder- und Küstensuche
+Die Länder-/Küstensuche wurde für Länder mit besonderen OSM-Grenzrelationen verbessert. Für die Niederlande sowie weitere Länder mit Überseegebieten werden europäische Suchgrenzen verwendet. Bei leeren Area-Abfragen gibt es einen bbox-basierten Fallback, damit die Suche nicht minutenlang ohne Treffer stehen bleibt.
+
+
+### v24 – Routenplaner mit Übernachtungsstopps
+
+Der Routenplaner kann 0 bis 8 Zwischenübernachtungen berücksichtigen. Eine einzelne Übernachtung wird am Mittelpunkt der Route geplant. Bei mehreren Übernachtungen wird die Strecke in möglichst gleich lange Fahretappen aufgeteilt. Die Platzsuche kann dadurch auf kleine Suchradien rund um die geplanten Stopppunkte begrenzt werden. Die Karte zeigt Start, Ziel, nummerierte Stopps sowie Kilometer und Fahrzeit je Etappe.
+
+
+## v25 – Prüf- und Stabilitätsupdate
+- Meer- und Inland-Filter funktionieren auch bei einer konkreten Orts-/Regionssuche geografisch, nicht nur bei einer reinen Ländersuche.
+- Intelligente Suche erkennt jetzt alle im Länderfeld enthaltenen europäischen Ländernamen auf Deutsch; viele englische Varianten wurden ergänzt.
+- Campingplatzabfragen an mehreren Übernachtungsstopps werden pro Stopp ausgeführt, damit ein einzelner Overpass-Timeout nicht die komplette Route verwirft.
+- Stoppmarker zeigen die kumulierte Strecke ab Start korrekt an.
+- Zusätzliche ARIA-Beschriftungen für zentrale Eingabefelder.

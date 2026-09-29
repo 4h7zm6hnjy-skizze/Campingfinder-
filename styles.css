@@ -210,7 +210,7 @@ input:focus, select:focus, textarea:focus { border-color:var(--green-2); box-sha
 .section-title-row p { margin:0; color:var(--muted); font-size:.86rem; }
 .route-card, .personal-card, .helpers-card { padding:20px; }
 .route-card { background:linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--blue-soft) 55%, var(--surface))); }
-.route-grid { display:grid; grid-template-columns:1.4fr 1.4fr .8fr auto; gap:12px; align-items:end; }
+.route-grid { display:grid; grid-template-columns:1.25fr 1.25fr .8fr .75fr auto; gap:12px; align-items:end; }
 .route-summary { margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--green-soft); border:1px solid color-mix(in srgb, var(--green) 25%, var(--line)); color:var(--green); font-weight:750; }
 
 .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
@@ -1112,4 +1112,45 @@ html {
   .place-choice-option strong { font-size:.9rem; }
   .place-choice-option small { font-size:.72rem; }
   .place-choice-option em { font-size:.64rem; }
+}
+
+
+/* v24 – Routenplaner mit Zwischenübernachtungen */
+.route-planner-note{margin:9px 0 0;color:var(--muted);font-size:.76rem;line-height:1.45}
+.route-summary{color:var(--text);font-weight:500}
+.route-summary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.route-summary-head>div:first-child{display:grid;gap:4px;min-width:0}
+.route-summary-head>div:first-child>strong{font-size:1rem;color:var(--green)}
+.route-summary-head>div:first-child>span{font-size:.76rem;color:var(--muted);line-height:1.4}
+.route-total{display:grid;justify-items:end;gap:2px;white-space:nowrap;padding:7px 10px;border-radius:11px;background:var(--surface)}
+.route-total strong{font-size:1.08rem;color:var(--text)}
+.route-total span{font-size:.72rem;color:var(--muted)}
+.route-leg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:8px;margin-top:10px}
+.route-leg-card{display:grid;gap:3px;padding:9px 10px;border-radius:11px;border:1px solid color-mix(in srgb,var(--green) 20%,var(--line));background:color-mix(in srgb,var(--green-soft) 45%,var(--surface))}
+.route-leg-card>span{font-size:.64rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green)}
+.route-leg-card>strong{font-size:.9rem;color:var(--text)}
+.route-leg-card>small{font-size:.68rem;color:var(--muted);line-height:1.35}
+.route-plan-marker-wrap,.route-segment-label-wrap{background:transparent;border:0}
+.route-plan-marker{display:grid;place-items:center;height:34px;min-width:34px;padding:0 8px;border-radius:999px;border:3px solid var(--surface);box-shadow:0 4px 14px rgba(15,40,26,.23);font-weight:900;font-size:.76rem;background:var(--text);color:var(--surface)}
+.route-plan-marker.stop{background:var(--green);color:#fff}
+.route-plan-marker.start{background:#1667c7;color:#fff}
+.route-plan-marker.end{background:#9c3d27;color:#fff}
+.route-segment-label{display:grid;justify-items:center;gap:0;padding:5px 8px;border-radius:10px;border:1px solid rgba(24,53,35,.14);background:color-mix(in srgb,var(--surface) 92%,transparent);box-shadow:0 3px 12px rgba(15,40,26,.14);white-space:nowrap}
+.route-segment-label strong{font-size:.72rem;color:var(--text)}
+.route-segment-label span{font-size:.62rem;color:var(--muted)}
+.badge.route-badge{background:var(--blue-soft);color:var(--blue);border-color:color-mix(in srgb,var(--blue) 25%,var(--line))}
+
+@media (max-width: 1120px){
+  .route-grid{grid-template-columns:1fr 1fr 1fr}
+  .route-grid .primary-btn{grid-column:span 1}
+}
+@media (max-width:780px){
+  .route-grid{grid-template-columns:1fr}
+  .route-summary-head{display:grid;grid-template-columns:1fr}
+  .route-total{justify-items:start;width:max-content}
+  .route-leg-grid{grid-template-columns:1fr}
+  .route-planner-note{font-size:.72rem}
+  .route-segment-label{padding:4px 6px}
+  .route-segment-label strong{font-size:.68rem}
+  .route-segment-label span{font-size:.58rem}
 }

@@ -20,6 +20,25 @@ const countries = [
   ['SE','Schweden'],['CH','Schweiz'],['TR','Türkei'],['UA','Ukraine'],['GB','Vereinigtes Königreich'],['VA','Vatikan']
 ];
 
+// Mainland/European search envelopes for countries whose OSM/Nominatim country object can include remote territories.
+const COUNTRY_SEARCH_BBOX = {
+  NL:[50.70,3.20,53.70,7.30],
+  FR:[41.20,-5.30,51.20,9.70],
+  GB:[49.80,-8.80,60.90,1.90],
+  DK:[54.45,7.80,57.85,15.35],
+  ES:[35.70,-9.50,43.95,4.50],
+  PT:[36.75,-9.60,42.25,-6.00],
+  NO:[57.70,4.00,71.60,31.30]
+};
+
+function countryAreaDeclaration(countryCode) {
+  const code=String(countryCode||'').toUpperCase();
+  return `(
+  area["ISO3166-1"="${code}"]["boundary"="administrative"]["admin_level"="2"];
+  area["ISO3166-1:alpha2"="${code}"]["boundary"="administrative"]["admin_level"="2"];
+)->.searchArea;`;
+}
+
 function readJson(key, fallback) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
 }
@@ -45,7 +64,10 @@ const state = {
   trip: readJson('campingfinder:trip', { name: 'Meine Reise', startDate: '', stages: [] }),
   tripLayer: null,
   lastSearch: readJson('campingfinder:lastSearch', null),
-  overpassCache: new Map()
+  overpassCache: new Map(),
+  routeSelections: { start: null, end: null },
+  selectedPlaceKey: null,
+  countryBoundaries: new Map()
 };
 if (!state.trip || !Array.isArray(state.trip.stages)) state.trip = { name: 'Meine Reise', startDate: '', stages: [] };
 if (state.trip.startDate == null) state.trip.startDate = '';
@@ -75,7 +97,7 @@ const els = {
   resetFilters: $('resetFiltersBtn'),
   count: $('resultCount'), websiteCount: $('websiteCount'), weatherCount: $('weatherCount'), favoriteCount: $('favoriteCount'),
   results: $('results'), status: $('statusText'), favoritesOnly: $('favoritesOnlyBtn'),
-  routeStart: $('routeStart'), routeEnd: $('routeEnd'), routeCorridor: $('routeCorridor'), routeBtn: $('routeSearchBtn'), routeSummary: $('routeSummary'),
+  routeStart: $('routeStart'), routeEnd: $('routeEnd'), routeStartSuggestions: $('routeStartSuggestions'), routeEndSuggestions: $('routeEndSuggestions'), routeStartResolved: $('routeStartResolved'), routeEndResolved: $('routeEndResolved'), routeOvernights: $('routeOvernights'), routeCorridor: $('routeCorridor'), routeBtn: $('routeSearchBtn'), routeSummary: $('routeSummary'),
   mapLayer: $('mapLayerSelect'), language: $('languageSelect'),
   favoriteLists: $('favoriteLists'), visitedPlaces: $('visitedPlaces'), newListName: $('newListName'), addList: $('addListBtn'), refreshMyPlaces: $('refreshMyPlacesBtn'),
   journalForm: $('journalForm'), journalEntries: $('journalEntries'),
@@ -87,6 +109,7 @@ const els = {
   activeFilterCount: $('activeFilterCount'), activeFilterText: $('activeFilterText'), filterCategoryJump: $('filterCategoryJump'),
   budgetDistance: $('budgetDistance'), budgetConsumption: $('budgetConsumption'), budgetFuelPrice: $('budgetFuelPrice'), budgetDays: $('budgetDays'), budgetCamping: $('budgetCamping'), budgetTolls: $('budgetTolls'), budgetFoodDay: $('budgetFoodDay'), budgetExtras: $('budgetExtras'), budgetResult: $('budgetResult'),
   shareSearchBtn: $('shareSearchBtn'), shareDialog: $('shareDialog'), shareUrlInput: $('shareUrlInput'), shareQr: $('shareQr'), shareQrNote: $('shareQrNote'),
+  placeChoiceDialog: $('placeChoiceDialog'), placeChoiceTitle: $('placeChoiceTitle'), placeChoiceText: $('placeChoiceText'), placeChoiceOptions: $('placeChoiceOptions'), closePlaceChoiceBtn: $('closePlaceChoiceBtn'),
   travelStats: $('travelStats'),
   dialog: $('detailDialog'), detail: $('detailContent'), closeDialog: $('closeDialogBtn'), install: $('installBtn')
 };
@@ -125,6 +148,7 @@ const mapLayers = {
 };
 let activeMapLayer = mapLayers.osm.addTo(map);
 const markerLayer = L.layerGroup().addTo(map);
+const routePlanLayer = L.layerGroup().addTo(map);
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -526,7 +550,7 @@ function makeBboxGrid(bbox) {
   const latKm = Math.max(1, (n-s) * 111);
   const lonKm = Math.max(1, (e-w) * 111 * Math.max(.25, Math.cos(midLat*Math.PI/180)));
   const approxAreaKm2 = latKm * lonKm;
-  const targetCells = Math.max(1, Math.min(12, Math.ceil(approxAreaKm2 / 45000)));
+  const targetCells = Math.max(1, Math.min(8, Math.ceil(approxAreaKm2 / 70000)));
   const aspect = Math.max(.25, Math.min(4, lonKm/latKm));
   let cols = Math.max(1, Math.round(Math.sqrt(targetCells * aspect)));
   let rows = Math.max(1, Math.ceil(targetCells / cols));
@@ -555,17 +579,92 @@ function retriableOverpassError(err) {
   return err?.name === 'AbortError' || /Server (429|500|502|503|504)|Failed to fetch|NetworkError|Load failed/i.test(String(err?.message || err || ''));
 }
 
+function rawElementLatLon(el) {
+  const lat = Number(el?.lat ?? el?.center?.lat);
+  const lon = Number(el?.lon ?? el?.center?.lon);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+
+function pointInRing(lon, lat, ring) {
+  let inside = false;
+  if (!Array.isArray(ring) || ring.length < 3) return false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = Number(ring[i]?.[0]), yi = Number(ring[i]?.[1]);
+    const xj = Number(ring[j]?.[0]), yj = Number(ring[j]?.[1]);
+    if (![xi, yi, xj, yj].every(Number.isFinite)) continue;
+    const crosses = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInPolygonCoordinates(lon, lat, polygon) {
+  if (!Array.isArray(polygon) || !polygon.length || !pointInRing(lon, lat, polygon[0])) return false;
+  for (let i = 1; i < polygon.length; i++) if (pointInRing(lon, lat, polygon[i])) return false;
+  return true;
+}
+
+function pointInGeoJsonGeometry(lon, lat, geometry) {
+  if (!geometry) return true;
+  if (geometry.type === 'Polygon') return pointInPolygonCoordinates(lon, lat, geometry.coordinates);
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates?.some(poly => pointInPolygonCoordinates(lon, lat, poly)) || false;
+  return true;
+}
+
+function filterRawElementsByGeometry(elements, geometry) {
+  if (!geometry) return elements || [];
+  return (elements || []).filter(el => {
+    const p = rawElementLatLon(el);
+    return p ? pointInGeoJsonGeometry(p.lon, p.lat, geometry) : false;
+  });
+}
+
+function expandBboxKm(bbox, km = 35) {
+  const [s,w,n,e] = bbox.map(Number);
+  const midLat = (s+n)/2;
+  const latPad = km / 111;
+  const lonPad = km / (111 * Math.max(.22, Math.cos(midLat*Math.PI/180)));
+  return [Math.max(-90,s-latPad), Math.max(-180,w-lonPad), Math.min(90,n+latPad), Math.min(180,e+lonPad)];
+}
+
+function pointToSegmentKm(lat, lon, aLat, aLon, bLat, bLon) {
+  const scale = Math.cos(lat * Math.PI / 180);
+  const px = lon * 111 * scale, py = lat * 111;
+  const ax = aLon * 111 * scale, ay = aLat * 111;
+  const bx = bLon * 111 * scale, by = bLat * 111;
+  const vx = bx-ax, vy = by-ay, wx = px-ax, wy = py-ay;
+  const vv = vx*vx + vy*vy;
+  const t = vv > 0 ? Math.max(0, Math.min(1, (wx*vx + wy*vy)/vv)) : 0;
+  return Math.hypot(px-(ax+t*vx), py-(ay+t*vy));
+}
+
+function distanceToCoastKm(lat, lon, coastWays, stopAtKm = 30) {
+  let best = Infinity;
+  for (const way of coastWays || []) {
+    const g = way?.geometry;
+    if (!Array.isArray(g) || g.length < 2) continue;
+    for (let i=1;i<g.length;i++) {
+      const a=g[i-1], b=g[i];
+      const d=pointToSegmentKm(lat,lon,Number(a.lat),Number(a.lon),Number(b.lat),Number(b.lon));
+      if (d < best) best=d;
+      if (best <= stopAtKm) return best;
+    }
+  }
+  return best;
+}
+
 async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
   progress?.('attempt');
-  const areaDecl = `area["ISO3166-1"="${countryCode}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;`;
-  const filters = `(area.searchArea)${bboxFilter(bbox)}`;
-  const query = `[out:json][timeout:24];\n${areaDecl}\n(${overpassTypeFragments(filters)});\nout body center qt;`;
+  const bboxExpr = bboxFilter(bbox);
+  // Important: country membership is filtered locally with the Nominatim country polygon.
+  // Overpass only receives the small bbox. This avoids the unreliable area+bbox combination.
+  const query = `[out:json][timeout:18];\n(${overpassTypeFragments(bboxExpr)});\nout body center qt;`;
   try {
-    const data = await overpass(query, { timeoutMs: 22000, maxEndpoints: 2 });
+    const data = await overpass(query, { timeoutMs: 16000, maxEndpoints: 3 });
     progress?.('success', data.elements?.length || 0);
     return { elements: data.elements || [], failed: 0 };
   } catch (err) {
-    if (depth < 2 && retriableOverpassError(err)) {
+    if (depth < 1 && retriableOverpassError(err)) {
       const halves = splitBbox(bbox);
       const combined=[];
       let failed=0;
@@ -573,7 +672,7 @@ async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
         const part = await queryCountryTile(countryCode, half, depth+1, progress);
         combined.push(...part.elements);
         failed += part.failed;
-        await new Promise(resolve => setTimeout(resolve, 120));
+        await new Promise(resolve => setTimeout(resolve, 90));
       }
       return { elements: combined, failed };
     }
@@ -582,65 +681,278 @@ async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
   }
 }
 
-async function searchCountryChunked(countryCode, countryName, rawBbox) {
+async function queryCoastTile(bbox, depth = 0) {
+  const expanded = expandBboxKm(bbox, 38);
+  const query = `[out:json][timeout:16];\nway["natural"="coastline"]${bboxFilter(expanded)};\nout geom qt;`;
+  try {
+    const data = await overpass(query, { timeoutMs: 14000, maxEndpoints: 2 });
+    return data.elements || [];
+  } catch (err) {
+    if (depth < 1 && retriableOverpassError(err)) {
+      const halves=splitBbox(expanded), all=[];
+      for (const half of halves) {
+        try {
+          const q=`[out:json][timeout:12];\nway["natural"="coastline"]${bboxFilter(half)};\nout geom qt;`;
+          const d=await overpass(q,{timeoutMs:11000,maxEndpoints:2});
+          all.push(...(d.elements||[]));
+        } catch {}
+      }
+      return all;
+    }
+    return [];
+  }
+}
+
+async function filterRawByLocationMode(elements, bbox, mode = '', coastRadiusKm = 30) {
+  if (!['sea','inland'].includes(mode)) return elements || [];
+  const coastWays = await queryCoastTile(bbox);
+  if (coastWays.length) {
+    return (elements || []).filter(el => {
+      const p = rawElementLatLon(el);
+      if (!p) return false;
+      const coastal = distanceToCoastKm(p.lat, p.lon, coastWays, coastRadiusKm) <= coastRadiusKm;
+      if (coastal) el.__campingfinderCoastal = true;
+      return mode === 'sea' ? coastal : !coastal;
+    });
+  }
+  // Fallback when a public coastline query is temporarily unavailable.
+  return (elements || []).filter(el => {
+    const coastal = seaHeuristic(el.tags || {});
+    return mode === 'sea' ? coastal : !coastal;
+  });
+}
+
+async function searchCountryChunked(countryCode, countryName, rawBbox, geometry = null, options = {}) {
   const bbox = clampEuropeBbox(rawBbox);
   const tiles = makeBboxGrid(bbox);
   const rawById = new Map();
+  const locationMode = ['sea','inland'].includes(options.locationMode) ? options.locationMode : (options.coastMode ? 'sea' : '');
+  const coastMode = locationMode === 'sea';
+  const coastRadiusKm = Number(options.coastRadiusKm || 30);
   let attempted=0, successful=0, failed=0;
-  const progress = (kind, count=0) => {
+  const progress = (kind) => {
     if (kind === 'attempt') attempted++;
     if (kind === 'success') successful++;
-    els.status.textContent = `${countryName}: Teilbereiche werden geladen · ${successful} erfolgreich · ${rawById.size} Plätze gefunden`;
   };
   for (let i=0;i<tiles.length;i++) {
-    els.status.textContent = `${countryName}: Teilgebiet ${i+1} von ${tiles.length} wird geladen · ${rawById.size} Plätze gefunden`;
+    els.status.textContent = `${countryName}${coastMode?' · Küste':''}: Teilgebiet ${i+1} von ${tiles.length} · ${rawById.size} Plätze gefunden`;
     const part = await queryCountryTile(countryCode, tiles[i], 0, progress);
-    for (const el of part.elements) rawById.set(`${el.type}/${el.id}`, el);
+    let candidates = filterRawElementsByGeometry(part.elements, geometry);
+    if (locationMode && candidates.length) {
+      candidates = await filterRawByLocationMode(candidates, tiles[i], locationMode, coastRadiusKm);
+    }
+    for (const el of candidates) rawById.set(`${el.type}/${el.id}`, el);
     failed += part.failed;
-    // Keep the UI responsive and be gentler to the public Overpass instances.
-    if (i < tiles.length-1) await new Promise(resolve => setTimeout(resolve, 180));
+    if (i < tiles.length-1) await new Promise(resolve => setTimeout(resolve, 120));
   }
-  return { elements:[...rawById.values()], failed, attempted, successful, bbox };
+  return { elements:[...rawById.values()], failed, attempted, successful, bbox, coastMode, locationMode, coastRadiusKm };
 }
 
-async function geocodePlace(query, countryCode) {
-  const cacheKey = `campingfinder:geo:${countryCode}:${query.toLowerCase().trim()}`;
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
-  const url = new URL(NOMINATIM_ENDPOINT);
-  url.searchParams.set('format', 'jsonv2');
-  url.searchParams.set('limit', '1');
-  url.searchParams.set('countrycodes', countryCode.toLowerCase());
-  url.searchParams.set('q', query);
-  const response = await fetch(url, { headers: { 'Accept-Language': 'de,en;q=0.8' } });
-  if (!response.ok) throw new Error('Ortssuche nicht erreichbar');
-  const results = await response.json();
-  if (!results.length) throw new Error('Ort oder Region wurde nicht gefunden.');
-  const item = results[0];
-  const bbox = item.boundingbox.map(Number); // south,north,west,east
-  const result = { bbox: [bbox[0], bbox[2], bbox[1], bbox[3]], name: item.display_name };
-  localStorage.setItem(cacheKey, JSON.stringify(result));
+async function geocodeCountryBoundary(countryName, countryCode) {
+  const code=String(countryCode||'').toUpperCase();
+  if (state.countryBoundaries?.has(code)) return state.countryBoundaries.get(code);
+  const url=new URL(NOMINATIM_ENDPOINT);
+  url.searchParams.set('format','jsonv2');
+  url.searchParams.set('limit','1');
+  url.searchParams.set('addressdetails','1');
+  url.searchParams.set('featuretype','country');
+  url.searchParams.set('countrycodes',code.toLowerCase());
+  url.searchParams.set('polygon_geojson','1');
+  url.searchParams.set('polygon_threshold','0.02');
+  url.searchParams.set('q',countryName);
+  const response=await fetch(url,{headers:{'Accept-Language':`${state.language},de,en;q=0.7`}});
+  if(!response.ok) throw new Error('Landesgrenze konnte nicht geladen werden.');
+  const results=await response.json();
+  if(!results.length) throw new Error(`Land nicht gefunden: ${countryName}`);
+  const item=results[0], bb=(item.boundingbox||[]).map(Number);
+  if(bb.length!==4) throw new Error('Landesgrenze ist unvollständig.');
+  const result={bbox:clampEuropeBbox([bb[0],bb[2],bb[1],bb[3]]),name:item.display_name,geometry:item.geojson||null};
+  state.countryBoundaries?.set(code,result);
   return result;
 }
 
-async function geocodeAny(query) {
-  const coordMatch=String(query||'').trim().match(/^(-?\d{1,2}(?:\.\d+)?)\s*[,;]\s*(-?\d{1,3}(?:\.\d+)?)$/);
-  if(coordMatch){const lat=Number(coordMatch[1]),lon=Number(coordMatch[2]);if(lat>=-90&&lat<=90&&lon>=-180&&lon<=180)return{lat,lon,name:`${lat.toFixed(5)}, ${lon.toFixed(5)}`};}
-  const cacheKey = `campingfinder:geo:any:${query.toLowerCase().trim()}`;
+
+let placeChoicePending = null;
+
+function placeCandidatePrimary(candidate) {
+  const a = candidate?.address || {};
+  return a.city || a.town || a.village || a.municipality || a.hamlet || a.locality || a.suburb || String(candidate?.name || '').split(',')[0].trim() || 'Unbekannter Ort';
+}
+function placeCandidateSecondary(candidate) {
+  const a = candidate?.address || {};
+  const parts = [a.city_district || a.county, a.state || a.region, a.country].filter(Boolean);
+  return [...new Set(parts)].join(' · ') || candidate?.name || '';
+}
+function cancelPlaceChoice() {
+  if (!placeChoicePending) return;
+  const { reject } = placeChoicePending;
+  placeChoicePending = null;
+  if (els.placeChoiceDialog?.open) els.placeChoiceDialog.close();
+  const err = new Error('Ortsauswahl abgebrochen.');
+  err.code = 'USER_CANCEL';
+  reject(err);
+}
+function choosePlaceCandidate(query, candidates, countryName='') {
+  if (!Array.isArray(candidates) || !candidates.length) return Promise.reject(new Error('Ort oder Region wurde nicht gefunden.'));
+  if (candidates.length === 1) return Promise.resolve(candidates[0]);
+  if (!els.placeChoiceDialog || !els.placeChoiceOptions) return Promise.resolve(candidates[0]);
+  if (placeChoicePending) cancelPlaceChoice();
+  els.placeChoiceTitle.textContent = `Welchen Ort meinst du mit „${query}“?`;
+  els.placeChoiceText.textContent = countryName
+    ? `Es gibt mehrere passende Treffer in ${countryName}. Bitte wähle den richtigen Ort.`
+    : 'Es gibt mehrere passende Treffer. Bitte wähle den richtigen Ort.';
+  els.placeChoiceOptions.innerHTML = candidates.map((c,i)=>`<button type="button" class="place-choice-option" data-place-choice="${i}" role="option"><span class="place-choice-pin" aria-hidden="true">⌖</span><span><strong>${escapeHtml(placeCandidatePrimary(c))}</strong><small>${escapeHtml(placeCandidateSecondary(c))}</small><em>${escapeHtml(c.name || '')}</em></span></button>`).join('');
+  els.placeChoiceDialog.showModal();
+  return new Promise((resolve,reject)=>{ placeChoicePending={resolve,reject,candidates}; });
+}
+
+async function geocodeCountryBounds(countryName, countryCode) {
+  const code=String(countryCode||'').toUpperCase();
+  const override=COUNTRY_SEARCH_BBOX[code];
+  if (override) return { bbox:[...override], name:countryName };
+  const cacheKey=`campingfinder:geo:country:v22:${code}`;
+  const cached=localStorage.getItem(cacheKey);
+  if(cached){try{return JSON.parse(cached);}catch{}}
+  const url=new URL(NOMINATIM_ENDPOINT);
+  url.searchParams.set('format','jsonv2');
+  url.searchParams.set('limit','1');
+  url.searchParams.set('addressdetails','1');
+  url.searchParams.set('featuretype','country');
+  url.searchParams.set('countrycodes',String(countryCode||'').toLowerCase());
+  url.searchParams.set('q',countryName);
+  const response=await fetch(url,{headers:{'Accept-Language':`${state.language},de,en;q=0.7`}});
+  if(!response.ok)throw new Error('Landesgrenze konnte nicht geladen werden.');
+  const results=await response.json();
+  if(!results.length)throw new Error(`Land nicht gefunden: ${countryName}`);
+  const item=results[0], bb=(item.boundingbox||[]).map(Number);
+  if(bb.length!==4)throw new Error('Landesgrenze ist unvollständig.');
+  const result={bbox:[bb[0],bb[2],bb[1],bb[3]],name:item.display_name};
+  localStorage.setItem(cacheKey,JSON.stringify(result));
+  return result;
+}
+
+async function geocodePlace(query, countryCode, countryName='') {
+  // Candidate lists may be cached, but an ambiguous user's choice is intentionally not cached:
+  // searching the same name again should allow choosing a different place.
+  const candidates = await geocodeCandidates(query, 8, countryCode);
+  if (!candidates.length) throw new Error('Ort oder Region wurde nicht gefunden.');
+  const item = await choosePlaceCandidate(query, candidates, countryName);
+  let bbox = item.bbox;
+  if (!Array.isArray(bbox) || bbox.length !== 4) {
+    const latPad=.12, lonPad=.16;
+    bbox=[item.lat-latPad,item.lon-lonPad,item.lat+latPad,item.lon+lonPad];
+  }
+  const result = { bbox, name: item.name, lat:item.lat, lon:item.lon, address:item.address || {} };
+  return result;
+}
+
+function normalizeRouteQuery(query='') {
+  const raw = String(query || '').trim();
+  const key = normalizeSearchText(raw).replace(/[^a-z0-9]+/g,'');
+  const aliases = {
+    garderssee: 'Gardasee', gardase: 'Gardasee', gardasee: 'Gardasee', gardaseee: 'Gardasee',
+    lagoidgarda: 'Lago di Garda', lagodigarda: 'Lago di Garda',
+    bodensee: 'Bodensee', nordsee: 'Nordsee', ostsee: 'Ostsee'
+  };
+  return aliases[key] || raw;
+}
+async function geocodeCandidates(query, limit=6, countryCode='') {
+  const raw = String(query || '').trim();
+  const coordMatch=raw.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[,;]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if(coordMatch){const lat=Number(coordMatch[1]),lon=Number(coordMatch[2]);if(lat>=-90&&lat<=90&&lon>=-180&&lon<=180)return[{lat,lon,name:`${lat.toFixed(5)}, ${lon.toFixed(5)}`,type:'Koordinaten',address:{},bbox:[lat-.01,lon-.01,lat+.01,lon+.01]}];}
+  const normalized = normalizeRouteQuery(raw);
+  const cc = String(countryCode || '').toLowerCase();
+  const cacheKey = `campingfinder:geo:candidates:v18:${state.language}:${cc}:${normalized.toLowerCase().trim()}`;
   const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
+  if (cached) { try { return JSON.parse(cached).slice(0,limit); } catch {} }
   const url = new URL(NOMINATIM_ENDPOINT);
   url.searchParams.set('format', 'jsonv2');
-  url.searchParams.set('limit', '1');
-  url.searchParams.set('q', query);
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('addressdetails','1');
+  url.searchParams.set('dedupe','1');
+  if (cc) url.searchParams.set('countrycodes', cc);
+  url.searchParams.set('q', normalized);
   const response = await fetch(url, { headers: { 'Accept-Language': `${state.language},de,en;q=0.7` } });
   if (!response.ok) throw new Error('Ortssuche nicht erreichbar');
   const results = await response.json();
+  const seen = new Set();
+  const mapped = results.map(item => {
+    const bb=(item.boundingbox||[]).map(Number);
+    return {
+      lat:Number(item.lat), lon:Number(item.lon), name:item.display_name,
+      type:item.type || item.addresstype || '', importance:Number(item.importance || 0),
+      address:item.address || {},
+      bbox:bb.length===4 ? [bb[0],bb[2],bb[1],bb[3]] : null,
+      osmType:item.osm_type || '', osmId:item.osm_id || null
+    };
+  }).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)).filter(x=>{
+    const key=`${x.osmType}/${x.osmId || ''}/${x.name}`;
+    if(seen.has(key))return false;seen.add(key);return true;
+  });
+  localStorage.setItem(cacheKey, JSON.stringify(mapped.slice(0,10)));
+  return mapped.slice(0,limit);
+}
+async function geocodeAny(query) {
+  const results = await geocodeCandidates(query, 6);
   if (!results.length) throw new Error(`Ort nicht gefunden: ${query}`);
-  const item = results[0];
-  const result = { lat: Number(item.lat), lon: Number(item.lon), name: item.display_name };
-  localStorage.setItem(cacheKey, JSON.stringify(result));
-  return result;
+  return results[0];
+}
+function routeShortName(candidate) {
+  if (!candidate?.name) return '';
+  return candidate.name.split(',').slice(0,3).join(',').trim();
+}
+function clearRouteSelection(which) {
+  state.routeSelections[which] = null;
+  const resolved = which === 'start' ? els.routeStartResolved : els.routeEndResolved;
+  if (resolved) { resolved.textContent=''; resolved.classList.remove('ok','warn'); }
+}
+function selectRouteCandidate(which, candidate) {
+  state.routeSelections[which] = candidate;
+  const input = which === 'start' ? els.routeStart : els.routeEnd;
+  const list = which === 'start' ? els.routeStartSuggestions : els.routeEndSuggestions;
+  const resolved = which === 'start' ? els.routeStartResolved : els.routeEndResolved;
+  if (input) input.value = routeShortName(candidate);
+  if (list) { list.hidden=true; list.innerHTML=''; }
+  if (resolved) { resolved.textContent = `✓ Gefunden: ${candidate.name}`; resolved.classList.add('ok'); resolved.classList.remove('warn'); }
+}
+function renderRouteSuggestions(which, candidates, originalQuery='') {
+  const list = which === 'start' ? els.routeStartSuggestions : els.routeEndSuggestions;
+  const resolved = which === 'start' ? els.routeStartResolved : els.routeEndResolved;
+  if (!list) return;
+  if (!candidates.length) { list.hidden=true; list.innerHTML=''; if(resolved){resolved.textContent='Kein eindeutiger Ort gefunden.';resolved.classList.add('warn');resolved.classList.remove('ok');} return; }
+  const normalized = normalizeRouteQuery(originalQuery);
+  const corrected = normalizeSearchText(normalized) !== normalizeSearchText(originalQuery);
+  list.innerHTML = `${corrected ? `<div class="route-suggestion-hint">Meintest du „${escapeHtml(normalized)}“?</div>` : ''}` + candidates.map((c,i)=>`<button type="button" class="route-suggestion" role="option" data-route-choice="${which}" data-index="${i}"><strong>${escapeHtml(routeShortName(c))}</strong><small>${escapeHtml(c.name)}</small></button>`).join('');
+  list.hidden=false;
+  list._candidates=candidates;
+  if (resolved) { resolved.textContent='Bitte passenden Ort auswählen.'; resolved.classList.add('warn'); resolved.classList.remove('ok'); }
+}
+let routeSuggestTimer = null;
+function scheduleRouteSuggestions(which) {
+  clearTimeout(routeSuggestTimer);
+  routeSuggestTimer = setTimeout(async()=>{
+    const input = which === 'start' ? els.routeStart : els.routeEnd;
+    const q=input?.value?.trim()||'';
+    clearRouteSelection(which);
+    const list = which === 'start' ? els.routeStartSuggestions : els.routeEndSuggestions;
+    if(q.length<2){if(list)list.hidden=true;return;}
+    try { renderRouteSuggestions(which, await geocodeCandidates(q,6), q); } catch { if(list)list.hidden=true; }
+  }, 380);
+}
+async function ensureRouteSelection(which, text) {
+  const current = state.routeSelections[which];
+  if (current) return current;
+  const candidates = await geocodeCandidates(text,6);
+  if (!candidates.length) throw new Error(`Ort nicht gefunden: ${text}`);
+  const normalized = normalizeRouteQuery(text);
+  const corrected = normalizeSearchText(normalized) !== normalizeSearchText(text);
+  if (corrected || candidates.length > 1) {
+    renderRouteSuggestions(which,candidates,text);
+    const label = which === 'start' ? 'Start' : 'Ziel';
+    throw new Error(`${label} ist nicht eindeutig. Bitte zuerst den richtigen Ortsvorschlag auswählen.`);
+  }
+  selectRouteCandidate(which,candidates[0]);
+  return candidates[0];
 }
 function simplifyRouteCoordinates(coords, maxPoints=70) {
   if (!Array.isArray(coords) || coords.length <= maxPoints) return coords || [];
@@ -648,6 +960,92 @@ function simplifyRouteCoordinates(coords, maxPoints=70) {
   for (let i=0; i<maxPoints; i++) out.push(coords[Math.round(i*(coords.length-1)/(maxPoints-1))]);
   return out;
 }
+function nearSearchBbox(lat, lon, radiusKm) {
+  const latDelta = radiusKm / 111;
+  const cosLat = Math.max(0.2, Math.cos(Number(lat) * Math.PI / 180));
+  const lonDelta = radiusKm / (111 * cosLat);
+  return [
+    Math.max(-89.9, Number(lat) - latDelta),
+    Math.max(-179.9, Number(lon) - lonDelta),
+    Math.min(89.9, Number(lat) + latDelta),
+    Math.min(179.9, Number(lon) + lonDelta)
+  ];
+}
+
+function makeNearSearchGrid(bbox, radiusKm) {
+  const [s,w,n,e] = bbox;
+  const midLat = (s+n)/2;
+  const latKm = Math.max(1, (n-s) * 111);
+  const lonKm = Math.max(1, (e-w) * 111 * Math.max(.2, Math.cos(midLat*Math.PI/180)));
+  // Large-radius searches are deliberately split into moderate pieces so the free
+  // public Overpass instances do not receive one enormous request.
+  const targetAreaKm2 = radiusKm >= 500 ? 50000 : radiusKm >= 300 ? 42000 : 35000;
+  const maxCells = radiusKm >= 500 ? 28 : radiusKm >= 300 ? 24 : 18;
+  const targetCells = Math.max(1, Math.min(maxCells, Math.ceil((latKm*lonKm)/targetAreaKm2)));
+  const aspect = Math.max(.25, Math.min(4, lonKm/latKm));
+  let cols = Math.max(1, Math.round(Math.sqrt(targetCells*aspect)));
+  let rows = Math.max(1, Math.ceil(targetCells/cols));
+  while (rows*cols > maxCells) {
+    if (cols >= rows && cols > 1) cols--; else if (rows > 1) rows--; else break;
+  }
+  const cells=[];
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) {
+    const cs=s+(n-s)*r/rows, cn=s+(n-s)*(r+1)/rows;
+    const cw=w+(e-w)*c/cols, ce=w+(e-w)*(c+1)/cols;
+    cells.push([cs,cw,cn,ce]);
+  }
+  return cells;
+}
+
+async function queryNearbyTile(bbox, depth=0, progress=null) {
+  progress?.('attempt');
+  const query = `[out:json][timeout:24];\n(${overpassTypeFragments(bboxFilter(bbox))});\nout body center qt;`;
+  try {
+    const data = await overpass(query, { timeoutMs:22000, maxEndpoints:2 });
+    progress?.('success', data.elements?.length || 0);
+    return { elements:data.elements || [], failed:0 };
+  } catch (err) {
+    if (depth < 2 && retriableOverpassError(err)) {
+      const halves=splitBbox(bbox), combined=[];
+      let failed=0;
+      for (const half of halves) {
+        const part=await queryNearbyTile(half, depth+1, progress);
+        combined.push(...part.elements); failed += part.failed;
+        await new Promise(resolve=>setTimeout(resolve,120));
+      }
+      return { elements:combined, failed };
+    }
+    progress?.('failed');
+    return { elements:[], failed:1, error:err };
+  }
+}
+
+async function searchNearbyChunked(lat, lon, radiusMeters) {
+  const radiusKm = radiusMeters/1000;
+  const bbox = nearSearchBbox(lat, lon, radiusKm);
+  const tiles = makeNearSearchGrid(bbox, radiusKm);
+  const rawById = new Map();
+  let successful=0, failed=0;
+  const progress=(kind)=>{
+    if(kind==='success') successful++;
+    els.status.textContent = `Umkreis ${Math.round(radiusKm)} km: Teilbereiche werden geladen · ${successful} erfolgreich · ${rawById.size} Plätze gefunden`;
+  };
+  for(let i=0;i<tiles.length;i++) {
+    els.status.textContent = `Umkreis ${Math.round(radiusKm)} km: Teilgebiet ${i+1} von ${tiles.length} wird geladen · ${rawById.size} Plätze gefunden`;
+    const part=await queryNearbyTile(tiles[i],0,progress);
+    for(const el of part.elements) rawById.set(`${el.type}/${el.id}`,el);
+    failed += part.failed;
+    if(i<tiles.length-1) await new Promise(resolve=>setTimeout(resolve,160));
+  }
+  // Bounding boxes include their corners outside the requested circle. Keep only
+  // elements whose actual coordinate is inside the selected air-line radius.
+  const elements=[...rawById.values()].filter(el=>{
+    const p=normalizePlace(el);
+    return p && haversineKm(lat,lon,p.lat,p.lon) <= radiusKm;
+  });
+  return { elements, failed, bbox, radiusKm };
+}
+
 async function searchNearMe() {
   if (!navigator.geolocation) { showError('Standortzugriff wird von diesem Browser nicht unterstützt.'); return; }
   setLoading('Standort wird bestimmt …');
@@ -655,58 +1053,247 @@ async function searchNearMe() {
     const lat = pos.coords.latitude, lon = pos.coords.longitude, radius = Number(els.nearRadius.value || 25000);
     state.userLocation = { lat, lon };
     try {
-      els.status.textContent = `Campingplätze im Umkreis von ${Math.round(radius/1000)} km werden gesucht …`;
-      const around = `(around:${radius},${lat.toFixed(6)},${lon.toFixed(6)})`;
-      const query = `[out:json][timeout:45];
-(${overpassTypeFragments(around)});
-out body center;`;
-      const data = await overpass(query);
-      state.currentSearchLabel = `Nähe · ${Math.round(radius/1000)} km`;
+      const radiusKm=Math.round(radius/1000);
+      els.status.textContent = `Campingplätze im Umkreis von ${radiusKm} km werden gesucht …`;
+      let data;
+      if (radius <= 100000) {
+        const around = `(around:${radius},${lat.toFixed(6)},${lon.toFixed(6)})`;
+        const query = `[out:json][timeout:45];\n(${overpassTypeFragments(around)});\nout body center;`;
+        data = await overpass(query);
+      } else {
+        data = await searchNearbyChunked(lat, lon, radius);
+      }
+      state.currentSearchLabel = `Nähe · ${radiusKm} km`;
       ingestResults(data.elements || [], p => { p.distanceKm = haversineKm(lat, lon, p.lat, p.lon); });
-      map.setView([lat, lon], radius <= 10000 ? 11 : radius <= 25000 ? 10 : radius <= 50000 ? 9 : 7);
+      // For small radii keep an intuitive zoom; for 150–600 km fitResults() from
+      // ingestResults already frames all returned places correctly.
+      if (radius <= 100000) map.setView([lat, lon], radius <= 10000 ? 11 : radius <= 25000 ? 10 : radius <= 50000 ? 9 : 7);
+      if (data.failed) els.status.textContent += ` · ${data.failed} Teilbereich(e) konnten nicht geladen werden`;
     } catch (err) { showError(err?.message || 'Nähe-Suche fehlgeschlagen'); }
     finally { endLoading(); }
   }, err => { endLoading(); showError(err.code === 1 ? 'Standortfreigabe wurde nicht erteilt.' : 'Standort konnte nicht bestimmt werden.'); }, { enableHighAccuracy:false, timeout:12000, maximumAge:300000 });
 }
+function routePointAtFraction(coords, fraction) {
+  if (!Array.isArray(coords) || !coords.length) return null;
+  if (coords.length === 1) return { lon:Number(coords[0][0]), lat:Number(coords[0][1]) };
+  const f=Math.max(0,Math.min(1,Number(fraction)||0));
+  const lengths=[];
+  let total=0;
+  for(let i=1;i<coords.length;i++){
+    const a=coords[i-1], b=coords[i];
+    const d=haversineKm(Number(a[1]),Number(a[0]),Number(b[1]),Number(b[0]));
+    lengths.push(d); total+=d;
+  }
+  if (!total) return { lon:Number(coords[0][0]), lat:Number(coords[0][1]) };
+  const target=total*f;
+  let walked=0;
+  for(let i=0;i<lengths.length;i++){
+    const d=lengths[i];
+    if(walked+d>=target || i===lengths.length-1){
+      const local=d ? (target-walked)/d : 0;
+      const a=coords[i], b=coords[i+1];
+      return { lon:Number(a[0])+(Number(b[0])-Number(a[0]))*local, lat:Number(a[1])+(Number(b[1])-Number(a[1]))*local };
+    }
+    walked+=d;
+  }
+  const last=coords[coords.length-1];
+  return { lon:Number(last[0]), lat:Number(last[1]) };
+}
+function formatRouteDuration(seconds) {
+  const mins=Math.max(0,Math.round(Number(seconds||0)/60));
+  const h=Math.floor(mins/60), m=mins%60;
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
+}
+function routeStopSearchParts(stopPoints, corridor) {
+  const selected=els.type?.value || 'all';
+  const parts=[];
+  stopPoints.forEach(stop=>{
+    const around=`(around:${corridor},${Number(stop.lat).toFixed(6)},${Number(stop.lon).toFixed(6)})`;
+    if(selected==='camp_site') parts.push(`nwr["tourism"="camp_site"]${around};`);
+    else if(selected==='caravan_site') parts.push(`nwr["tourism"="caravan_site"]${around};`);
+    else {
+      parts.push(`nwr["tourism"="camp_site"]${around};`);
+      parts.push(`nwr["tourism"="caravan_site"]${around};`);
+    }
+  });
+  return parts.join('\n');
+}
+async function searchRouteStopsChunked(stopPoints, corridor) {
+  const rawById = new Map();
+  let failed = 0;
+  for (let i=0; i<stopPoints.length; i++) {
+    els.status.textContent = `Campingplätze an Übernachtungsstopp ${i+1} von ${stopPoints.length} werden gesucht …`;
+    const query = `[out:json][timeout:28];\n(${routeStopSearchParts([stopPoints[i]],corridor)});\nout body center qt;`;
+    try {
+      const data = await overpass(query,{timeoutMs:25000,maxEndpoints:3});
+      for (const el of data.elements || []) rawById.set(`${el.type}/${el.id}`,el);
+    } catch (err) {
+      failed++;
+    }
+  }
+  return { elements:[...rawById.values()], failed };
+}
+
+function nearestRouteStop(place, stopPoints) {
+  let best=null;
+  stopPoints.forEach((stop,index)=>{
+    const km=haversineKm(place.lat,place.lon,stop.lat,stop.lon);
+    if(!best || km<best.km) best={index,km,stop};
+  });
+  return best;
+}
+function renderRoutePlanMap(route, routeCoords, start, end, stopPoints, legs) {
+  routePlanLayer.clearLayers();
+  const totalDistance=Math.max(1, Number(route.distance||0));
+  const makePointMarker=(lat,lon,label,kind,popup)=>{
+    const marker=L.marker([lat,lon],{
+      icon:L.divIcon({
+        className:'route-plan-marker-wrap',
+        html:`<div class="route-plan-marker ${kind}">${escapeHtml(label)}</div>`,
+        iconSize:[kind==='stop'?38:46,38], iconAnchor:[kind==='stop'?19:23,19]
+      }),
+      title:popup,
+      zIndexOffset:900
+    });
+    marker.bindPopup(`<div class="map-popup"><h3>${escapeHtml(popup)}</h3></div>`);
+    marker.addTo(routePlanLayer);
+  };
+  makePointMarker(start.lat,start.lon,'S','start',`Start · ${routeShortName(start)}`);
+  let stopCumulativeDistance = 0;
+  stopPoints.forEach((stop,index)=>{
+    const leg=legs[index] || {};
+    stopCumulativeDistance += Number(leg.distance || 0);
+    makePointMarker(stop.lat,stop.lon,String(index+1),'stop',`Übernachtung ${index+1} · nach ca. ${Math.round(stopCumulativeDistance/1000)} km · Etappe ${formatRouteDuration(leg.duration)}`);
+  });
+  makePointMarker(end.lat,end.lon,'Z','end',`Ziel · ${routeShortName(end)}`);
+
+  let cumulative=0;
+  (legs || []).forEach((leg,index)=>{
+    const distance=Number(leg.distance||0);
+    const midpoint=(cumulative + distance/2)/totalDistance;
+    cumulative += distance;
+    const pos=routePointAtFraction(routeCoords,midpoint);
+    if(!pos) return;
+    const label=L.marker([pos.lat,pos.lon],{
+      interactive:false,
+      zIndexOffset:800,
+      icon:L.divIcon({
+        className:'route-segment-label-wrap',
+        html:`<div class="route-segment-label"><strong>${Math.round(distance/1000)} km</strong><span>${escapeHtml(formatRouteDuration(leg.duration))}</span></div>`,
+        iconSize:[94,42], iconAnchor:[47,21]
+      })
+    });
+    label.addTo(routePlanLayer);
+  });
+}
+function renderRouteSummary(start,end,route,legs,overnights,corridor) {
+  if(!els.routeSummary) return;
+  const totalKm=Math.round(Number(route.distance||0)/1000);
+  const stopText=overnights===0
+    ? `Keine Zwischenübernachtung · Plätze im Korridor der gesamten Route`
+    : `${overnights} Zwischenübernachtung${overnights===1?'':'en'} · ${overnights+1} Fahretappen · Plätze nur im Umkreis von ${Math.round(corridor/1000)} km um die Stopppunkte`;
+  let cumulativeKm=0;
+  const legCards=(legs||[]).map((leg,index)=>{
+    const km=Math.round(Number(leg.distance||0)/1000);
+    cumulativeKm += km;
+    const from=index===0 ? routeShortName(start) : `Stopp ${index}`;
+    const to=index===legs.length-1 ? routeShortName(end) : `Stopp ${index+1}`;
+    return `<div class="route-leg-card"><span>Etappe ${index+1}</span><strong>${km} km · ${escapeHtml(formatRouteDuration(leg.duration))}</strong><small>${escapeHtml(from)} → ${escapeHtml(to)}${index<legs.length-1 ? ` · Übernachtung nach ca. ${cumulativeKm} km` : ''}</small></div>`;
+  }).join('');
+  els.routeSummary.hidden=false;
+  els.routeSummary.innerHTML=`<div class="route-summary-head"><div><strong>${escapeHtml(routeShortName(start))} → ${escapeHtml(routeShortName(end))}</strong><span>${escapeHtml(stopText)}</span></div><div class="route-total"><strong>${totalKm} km</strong><span>${escapeHtml(formatRouteDuration(route.duration))}</span></div></div><div class="route-leg-grid">${legCards}</div>`;
+}
+
 async function searchRoute() {
   const startText = els.routeStart.value.trim(), endText = els.routeEnd.value.trim();
   if (!startText || !endText) { showError('Bitte Start und Ziel für die Route eingeben.'); return; }
-  setLoading('Route wird berechnet …');
+  setLoading('Route und Übernachtungsstopps werden berechnet …');
   els.routeBtn.disabled = true;
   try {
-    const [start, end] = await Promise.all([geocodeAny(startText), geocodeAny(endText)]);
-    const routeUrl = `${OSRM_ENDPOINT}/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&steps=false`;
-    const rr = await fetch(routeUrl);
-    if (!rr.ok) throw new Error('Routing-Dienst nicht erreichbar.');
-    const routeData = await rr.json();
-    if (routeData.code !== 'Ok' || !routeData.routes?.length) throw new Error('Für Start und Ziel wurde keine Route gefunden.');
-    const route = routeData.routes[0];
-    const coords = route.geometry?.coordinates || [];
-    const simplified = simplifyRouteCoordinates(coords, 70);
-    if (simplified.length < 2) throw new Error('Routengeometrie fehlt.');
-    state.routeGeometry = simplified;
-    if (state.routeLayer) map.removeLayer(state.routeLayer);
-    state.routeLayer = L.polyline(coords.map(c => [c[1],c[0]]), { weight:5, opacity:.72 }).addTo(map);
-    map.fitBounds(state.routeLayer.getBounds(), { padding:[30,30] });
+    const start = await ensureRouteSelection('start', startText);
+    const end = await ensureRouteSelection('end', endText);
+    const overnights=Math.max(0,Math.min(8,Number(els.routeOvernights?.value || 0)));
     const corridor = Number(els.routeCorridor.value || 10000);
-    const line = simplified.map(c => `${Number(c[1]).toFixed(5)},${Number(c[0]).toFixed(5)}`).join(',');
-    els.status.textContent = 'Plätze entlang der Route werden gesucht …';
-    const qParts = els.type.value === 'camp_site'
-      ? `nwr["tourism"="camp_site"](around:${corridor},${line});`
-      : els.type.value === 'caravan_site'
-        ? `nwr["tourism"="caravan_site"](around:${corridor},${line});`
-        : `nwr["tourism"="camp_site"](around:${corridor},${line});
-nwr["tourism"="caravan_site"](around:${corridor},${line});`;
-    const query = `[out:json][timeout:60];
-(${qParts});
-out body center;`;
-    const places = await overpass(query);
-    state.currentSearchLabel = `Route ${startText} → ${endText}`;
-    if(els.sort) els.sort.value='distance';
-    ingestResults(places.elements || [], p => { p.routeDistanceKm = distanceToRouteKm(p, simplified); });
-    const km = route.distance/1000, mins = route.duration/60;
-    els.routeSummary.hidden = false;
-    els.routeSummary.textContent = `${startText} → ${endText} · ca. ${Math.round(km)} km · ca. ${Math.floor(mins/60)} h ${Math.round(mins%60)} min · Plätze bis ${Math.round(corridor/1000)} km von der Route`;
+
+    // First calculate the direct route. Its geometry is used to place the requested
+    // overnight targets at equal route-distance intervals (1 stop = exactly 50%).
+    const initialUrl = `${OSRM_ENDPOINT}/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&steps=false`;
+    const initialResponse = await fetch(initialUrl);
+    if (!initialResponse.ok) throw new Error('Routing-Dienst nicht erreichbar.');
+    const initialData = await initialResponse.json();
+    if (initialData.code !== 'Ok' || !initialData.routes?.length) throw new Error('Für Start und Ziel wurde keine Route gefunden.');
+    const initialRoute=initialData.routes[0];
+    const initialCoords=initialRoute.geometry?.coordinates || [];
+    if(initialCoords.length<2) throw new Error('Routengeometrie fehlt.');
+
+    const roughStops=[];
+    for(let i=1;i<=overnights;i++){
+      const point=routePointAtFraction(initialCoords,i/(overnights+1));
+      if(point) roughStops.push(point);
+    }
+
+    // Recalculate with the target stop coordinates as via points. OSRM then gives us
+    // exact leg distance/time values for each driving day.
+    let finalData=initialData;
+    if(roughStops.length){
+      const points=[[start.lon,start.lat],...roughStops.map(p=>[p.lon,p.lat]),[end.lon,end.lat]];
+      const viaUrl=`${OSRM_ENDPOINT}/${points.map(p=>`${p[0]},${p[1]}`).join(';')}?overview=full&geometries=geojson&steps=false`;
+      const viaResponse=await fetch(viaUrl);
+      if(!viaResponse.ok) throw new Error('Routing-Dienst konnte die Zwischenstopps nicht berechnen.');
+      const viaData=await viaResponse.json();
+      if(viaData.code==='Ok' && viaData.routes?.length) finalData=viaData;
+    }
+
+    const route=finalData.routes[0];
+    const coords=route.geometry?.coordinates || [];
+    const simplified=simplifyRouteCoordinates(coords,70);
+    if(simplified.length<2) throw new Error('Routengeometrie fehlt.');
+    const legs=route.legs?.length ? route.legs : [{distance:route.distance,duration:route.duration}];
+    const waypointStops=overnights>0
+      ? (finalData.waypoints || []).slice(1,-1).map((w,index)=>({lon:Number(w.location?.[0] ?? roughStops[index]?.lon),lat:Number(w.location?.[1] ?? roughStops[index]?.lat),index:index+1}))
+      : [];
+
+    state.routeGeometry=simplified;
+    if(state.routeLayer) map.removeLayer(state.routeLayer);
+    state.routeLayer=L.polyline(coords.map(c=>[c[1],c[0]]),{weight:6,opacity:.78}).addTo(map);
+    renderRoutePlanMap(route,coords,start,end,waypointStops,legs);
+    renderRouteSummary(start,end,route,legs,overnights,corridor);
+    map.fitBounds(state.routeLayer.getBounds(),{padding:[34,34]});
+
+    let places;
+    if(overnights>0 && waypointStops.length){
+      els.status.textContent=`Campingplätze an ${overnights} Übernachtungsstopp${overnights===1?'':'s'} werden gesucht …`;
+      places=await searchRouteStopsChunked(waypointStops,corridor);
+      if (!places.elements.length && places.failed >= waypointStops.length) throw new Error('Die Campingplatzsuche an den Übernachtungsstopps ist derzeit nicht erreichbar.');
+      state.currentSearchLabel=`${overnights} Übernachtungsstopp${overnights===1?'':'s'} · ${routeShortName(start)} → ${routeShortName(end)}`;
+      if(els.sort) els.sort.value='distance';
+      ingestResults(places.elements || [],p=>{
+        const nearest=nearestRouteStop(p,waypointStops);
+        if(nearest){p.routeDistanceKm=nearest.km;p.routeStopIndex=nearest.index+1;p.routeStopTarget=nearest.stop;}
+      });
+      if (places.failed) els.status.textContent += ` · ${places.failed} Stopp-Abfrage(n) vorübergehend nicht geladen`;
+    } else {
+      els.status.textContent='Campingplätze entlang der gesamten Route werden gesucht …';
+      const line=simplified.map(c=>`${Number(c[1]).toFixed(5)},${Number(c[0]).toFixed(5)}`).join(',');
+      const qParts=els.type.value==='camp_site'
+        ? `nwr["tourism"="camp_site"](around:${corridor},${line});`
+        : els.type.value==='caravan_site'
+          ? `nwr["tourism"="caravan_site"](around:${corridor},${line});`
+          : `nwr["tourism"="camp_site"](around:${corridor},${line});\nnwr["tourism"="caravan_site"](around:${corridor},${line});`;
+      const query=`[out:json][timeout:60];\n(${qParts});\nout body center qt;`;
+      places=await overpass(query);
+      state.currentSearchLabel=`Route ${routeShortName(start)} → ${routeShortName(end)}`;
+      if(els.sort) els.sort.value='distance';
+      ingestResults(places.elements || [],p=>{p.routeDistanceKm=distanceToRouteKm(p,simplified);});
+    }
+
+    // Results are searched only around the stops, but the map should still show the
+    // complete journey with start, stop markers, segment km/time and destination.
+    setTimeout(()=>{
+      try{map.fitBounds(state.routeLayer.getBounds(),{padding:[34,34]});}catch{}
+      state.routeLayer?.bringToFront?.();
+      routePlanLayer?.bringToFront?.();
+    },160);
   } catch (err) { showError(err?.message || 'Routensuche fehlgeschlagen'); }
   finally { endLoading(); els.routeBtn.disabled = false; }
 }
@@ -734,7 +1321,7 @@ async function searchCountry() {
     const placeText = els.place.value.trim();
     if (placeText) {
       els.status.textContent = `Ort „${placeText}“ wird gesucht …`;
-      const geo = await geocodePlace(placeText, countryCode);
+      const geo = await geocodePlace(placeText, countryCode, countryName);
       const [s,w,n,e] = geo.bbox;
       // Expand very small geocoding boxes to at least about 25 km in each direction.
       const latPad = Math.max((n-s) * 0.35, 0.16);
@@ -742,32 +1329,53 @@ async function searchCountry() {
       const bounds = [s-latPad,w-lonPad,n+latPad,e+lonPad];
       const bbox = bboxFilter(bounds);
       const query = `[out:json][timeout:40];\n(${overpassTypeFragments(bbox)});\nout body center qt;`;
-      state.currentSearchLabel = placeText;
+      state.currentSearchLabel = geo.name || placeText;
+      const locationMode = ['sea','inland'].includes(els.location?.value) ? els.location.value : '';
       try {
         const data = await overpass(query, { timeoutMs: 36000, maxEndpoints: 3 });
-        ingestResults(data.elements || []);
+        const elements = locationMode ? await filterRawByLocationMode(data.elements || [], bounds, locationMode, 30) : (data.elements || []);
+        ingestResults(elements, place => {
+          if (locationMode === 'sea') { place.sea = true; place.coastalSearch = true; place.coastRadiusKm = 30; }
+          if (locationMode === 'inland') place.sea = false;
+        });
       } catch (err) {
         if (!retriableOverpassError(err)) throw err;
         // A large region (e.g. Bavaria/Tuscany) is automatically divided if a single request is too heavy.
-        const pseudoCountry = await searchCountryChunked(countryCode, placeText, bounds);
-        ingestResults(pseudoCountry.elements || []);
+        const pseudoCountry = await searchCountryChunked(countryCode, placeText, bounds, null, { locationMode, coastRadiusKm:30 });
+        ingestResults(pseudoCountry.elements || [], place => {
+          if (locationMode === 'sea') { place.sea = true; place.coastalSearch = true; place.coastRadiusKm = 30; }
+          if (locationMode === 'inland') place.sea = false;
+        });
         if (pseudoCountry.failed) els.status.textContent = `${placeText}: Ergebnisse geladen · ${pseudoCountry.failed} Teilbereich(e) konnten nicht geladen werden.`;
       }
     } else {
       // Full-country searches are intentionally split into smaller geographic chunks.
-      // This avoids the 504 timeouts caused by one very large Overpass request.
-      els.status.textContent = `${countryName}: Landesgrenzen werden vorbereitet …`;
-      const geo = await geocodePlace(countryName, countryCode);
-      state.currentSearchLabel = countryName;
-      const result = await searchCountryChunked(countryCode, countryName, geo.bbox);
+      // When "Am Meer" is active, campsites are queried geographically around real OSM coastline ways
+      // instead of relying on incomplete textual campsite tags.
+      const locationMode = ['sea','inland'].includes(els.location?.value) ? els.location.value : '';
+      const coastMode = locationMode === 'sea';
+      els.status.textContent = coastMode ? `${countryName}: Küstensuche wird vorbereitet …` : locationMode === 'inland' ? `${countryName}: Inlandssuche wird vorbereitet …` : `${countryName}: Landesgrenzen werden vorbereitet …`;
+      const geo = await geocodeCountryBoundary(countryName, countryCode);
+      state.currentSearchLabel = coastMode ? `${countryName} · Küste` : locationMode === 'inland' ? `${countryName} · Inland` : countryName;
+      const result = await searchCountryChunked(countryCode, countryName, geo.bbox, geo.geometry, { locationMode, coastRadiusKm: 30 });
       if (!result.elements.length && result.failed) throw new Error('Die freien Kartendaten-Server konnten die Teilbereiche derzeit nicht laden. Bitte später erneut versuchen oder einen Ort eingeben.');
-      ingestResults(result.elements || []);
+      if (locationMode) {
+        ingestResults(result.elements || [], place => {
+          if (locationMode === 'sea') { place.sea = true; place.coastalSearch = true; place.coastRadiusKm = 30; }
+          else place.sea = false;
+        });
+      } else ingestResults(result.elements || []);
       try { map.fitBounds([[result.bbox[0],result.bbox[1]],[result.bbox[2],result.bbox[3]]], { padding:[24,24], maxZoom:7 }); } catch {}
       if (result.failed) {
-        els.status.textContent = `${countryName}: ${state.filteredPlaces.length} Treffer · ${result.failed} Teilbereich(e) vorübergehend nicht geladen.`;
+        els.status.textContent = coastMode
+          ? `${countryName} · Küste: ${state.filteredPlaces.length} Treffer · ${result.failed} Teilbereich(e) vorübergehend nicht geladen.`
+          : `${countryName}: ${state.filteredPlaces.length} Treffer · ${result.failed} Teilbereich(e) vorübergehend nicht geladen.`;
+      } else if (coastMode && els.smartSearchFeedback) {
+        els.smartSearchFeedback.innerHTML += ' <span>Meer = geografisch bis ca. 30 km von einer OpenStreetMap-Küstenlinie.</span>';
       }
     }
   } catch (err) {
+    if (err?.code === 'USER_CANCEL') { els.status.textContent = 'Ortsauswahl abgebrochen.'; return; }
     showError(err?.name === 'AbortError' ? 'Zeitüberschreitung bei der freien Kartendaten-API.' : (err?.message || 'Unbekannter Fehler'));
   } finally { endLoading(); }
 }
@@ -791,6 +1399,7 @@ async function searchMapArea() {
 }
 
 function ingestResults(elements, decorate = null) {
+  state.selectedPlaceKey = null;
   const dedupe = new Map();
   elements.map(normalizePlace).filter(Boolean).forEach(p => { if (decorate) decorate(p); dedupe.set(p.key, p); });
   state.allPlaces = [...dedupe.values()];
@@ -939,7 +1548,7 @@ function applySmartSearchText() {
     [/\b(hallenbad|indoor pool)\b/g,()=>setCheck(els.indoorPool,'Hallenbad')],
     [/\b(beheizter pool|beheiztes schwimmbad|heated pool)\b/g,()=>setCheck(els.heatedPool,'Beheizter Pool')],
     [/\b(kinderpool|planschbecken|paddling pool)\b/g,()=>setCheck(els.paddlingPool,'Kinderpool')],
-    [/\b(wasserpark|aquapark|wasserrutsche|rutschen)\b/g,()=>setCheck(els.waterPark,'Wasserpark/Rutschen')],
+    [/\b(wasserpark|aquapark|wasserrutsche|wasserrutschen|rutsche|rutschen|water slide|waterslide|slides?)\b/g,()=>setCheck(els.waterPark,'Wasserpark/Rutschen')],
     [/\b(kinderclub|miniclub|kids club)\b/g,()=>setCheck(els.kidsClub,'Kinderclub')],
     [/\b(jugendclub|teen club|youth club)\b/g,()=>setCheck(els.teenClub,'Jugendclub')],
     [/\b(brötchenservice|brotchenservice|bread service)\b/g,()=>setCheck(els.breadService,'Brötchenservice')],
@@ -995,20 +1604,51 @@ function applySmartSearchText() {
   const priceRe=/bis\s*(20|40|60)\s*(?:€|euro)?/g;
   const priceMatch = normalizeSearchText(raw).match(/bis\s*(20|40|60)\s*(?:€|euro)?/); if(priceMatch){setValue(els.price,priceMatch[1],`bis ${priceMatch[1]} €/Nacht`);work=work.replace(priceRe,' ');}
 
-  const countryAliases = {
-    DE:['deutschland','germany'],AT:['osterreich','austria'],CH:['schweiz','switzerland'],IT:['italien','italy','italia'],FR:['frankreich','france'],ES:['spanien','spain','espana'],NL:['niederlande','holland','netherlands'],BE:['belgien','belgium'],DK:['danemark','denmark'],HR:['kroatien','croatia'],SI:['slowenien','slovenia'],PL:['polen','poland'],CZ:['tschechien','czechia','czech republic'],PT:['portugal'],GR:['griechenland','greece'],SE:['schweden','sweden'],NO:['norwegen','norway'],FI:['finnland','finland'],IE:['irland','ireland'],GB:['grossbritannien','vereinigtes konigreich','united kingdom','england'],HU:['ungarn','hungary']
+  const countryAliases = Object.fromEntries(countries.map(([code,name]) => [code,[normalizeSearchText(name)]]));
+  const extraCountryAliases = {
+    DE:['germany'],AT:['austria'],CH:['switzerland'],IT:['italy','italia'],FR:['france'],ES:['spain','espana'],NL:['holland','netherlands'],BE:['belgium'],DK:['denmark'],HR:['croatia'],SI:['slovenia'],PL:['poland'],CZ:['czechia','czech republic'],GR:['greece'],SE:['sweden'],NO:['norway'],FI:['finland'],IE:['ireland'],GB:['great britain','united kingdom','england','uk'],HU:['hungary'],
+    AL:['albania'],AM:['armenia'],AZ:['azerbaijan'],BY:['belarus'],BA:['bosnia','bosnia and herzegovina'],BG:['bulgaria'],CY:['cyprus'],EE:['estonia'],GE:['georgia'],IS:['iceland'],LV:['latvia'],LT:['lithuania'],ME:['montenegro'],MK:['north macedonia'],RO:['romania'],RS:['serbia'],SK:['slovakia'],TR:['turkey','turkiye'],UA:['ukraine'],RU:['russia'],VA:['vatican city']
   };
+  for (const [code, aliases] of Object.entries(extraCountryAliases)) countryAliases[code] = [...new Set([...(countryAliases[code]||[]), ...aliases.map(normalizeSearchText)])];
   let countryFound='';
   outer: for (const [code,aliases] of Object.entries(countryAliases)) for (const alias of aliases) { const re=new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')}\\b`,'g'); if(re.test(work)){ countryFound=code; work=work.replace(re,' '); break outer; } }
   if (countryFound && els.country) { els.country.value=countryFound; const name=els.country.selectedOptions[0]?.textContent||countryFound; found.unshift(name); }
 
-  work=work.replace(/\b(mit|ohne|und|oder|fur|fuer|in|bei|nahe|am|an|der|die|das|dem|den|einem|einer|einen|soll|sein|suche|finde|platz|platze|plaetze)\b/g,' ').replace(/[,.!?:;]+/g,' ').replace(/\s+/g,' ').trim();
-  if (els.place) els.place.value=work.length>=2 ? work : '';
-  if (work.length>=2) found.unshift(`Ort/Region: ${work}`);
+  const normalizedRaw = normalizeSearchText(raw);
+  const locationWords = work
+    .replace(/\b(mit|ohne|und|oder|fur|fuer|am|an|der|die|das|dem|den|einem|einer|einen|soll|sein|suche|finde|platz|platze|plaetze|campingplatz|campingplatze|campingplaetze)\b/g,' ')
+    .replace(/[,.!?:;]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  let placeText = '';
+  let ignoredWords = '';
+  const candidatePlace = locationWords.replace(/\b(in|bei|nahe|um|rund)\b/g,' ').replace(/\s+/g,' ').trim();
+  if (!countryFound) {
+    // Ohne erkanntes Land ist der Rest sehr wahrscheinlich ein Ort/Region/Platzname.
+    placeText = candidatePlace;
+  } else if (candidatePlace.length >= 2) {
+    // Mit erkanntem Land übernehmen wir Restwörter nur dann als Ort, wenn der Nutzer
+    // das ausdrücklich mit "in / bei / nahe / um" formuliert hat. Wünsche dürfen
+    // niemals versehentlich im Ortsfeld landen.
+    const escaped = candidatePlace.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+    const explicitLocation = new RegExp(`\\b(?:in|bei|nahe|um|rund\\s+um)\\s+(?:dem|der|den|einem|einer)?\\s*${escaped}\\b`, 'i').test(normalizedRaw);
+    if (explicitLocation) placeText = candidatePlace;
+    else ignoredWords = candidatePlace;
+  }
+
+  if (els.place) els.place.value = placeText.length >= 2 ? placeText : '';
+  if (placeText.length >= 2) found.unshift(`Ort/Region: ${placeText}`);
   syncQuickControls();
   applyFilters(false);
-  if (els.smartSearchFeedback) els.smartSearchFeedback.innerHTML = found.length ? `<strong>Erkannt:</strong> ${escapeHtml([...new Set(found)].join(' · '))}` : 'Keine eindeutigen Filter erkannt. Du kannst die normale Orts- und Filtersuche weiter verwenden.';
-  if (work.length>=2 || countryFound) searchCountry();
+  if (els.smartSearchFeedback) {
+    els.smartSearchFeedback.innerHTML = found.length ? `<strong>Erkannt:</strong> ${escapeHtml([...new Set(found)].join(' · '))}` : 'Keine eindeutigen Filter erkannt. Du kannst die normale Orts- und Filtersuche weiter verwenden.';
+    if (ignoredWords) els.smartSearchFeedback.innerHTML += ` <span>· Nicht als Ort verwendet: ${escapeHtml(ignoredWords)}</span>`;
+  }
+  if (countryFound && !placeText && els.location?.value === 'sea' && els.smartSearchFeedback) {
+    els.smartSearchFeedback.innerHTML += ' <span>Starte geografische Küstensuche …</span>';
+  }
+  if (placeText.length>=2 || countryFound) searchCountry();
   else if (!state.allPlaces.length && els.smartSearchFeedback) els.smartSearchFeedback.innerHTML += ' <span>Bitte zusätzlich Ort oder Land angeben.</span>';
 }
 
@@ -1049,7 +1689,7 @@ function applyFilters(fitMap = false) {
 
   if (els.sort.value === 'stars') places.sort((a,b) => (b.stars - a.stars) || a.name.localeCompare(b.name, state.language));
   else if (els.sort.value === 'type') places.sort((a,b) => a.typeLabel.localeCompare(b.typeLabel, state.language) || a.name.localeCompare(b.name, state.language));
-  else if (els.sort.value === 'distance') places.sort((a,b) => ((a.distanceKm ?? a.routeDistanceKm ?? Infinity) - (b.distanceKm ?? b.routeDistanceKm ?? Infinity)) || a.name.localeCompare(b.name, state.language));
+  else if (els.sort.value === 'distance') places.sort((a,b) => ((a.routeStopIndex ?? Infinity) - (b.routeStopIndex ?? Infinity)) || ((a.distanceKm ?? a.routeDistanceKm ?? Infinity) - (b.distanceKm ?? b.routeDistanceKm ?? Infinity)) || a.name.localeCompare(b.name, state.language));
   else places.sort((a,b) => a.name.localeCompare(b.name, state.language));
 
   state.filteredPlaces = places;
@@ -1057,7 +1697,7 @@ function applyFilters(fitMap = false) {
   renderResults();
   renderMarkers();
   updateStats();
-  if (fitMap) fitResults();
+  if (fitMap || !state.selectedPlaceKey) fitResults({ clearSelection: !state.selectedPlaceKey });
 }
 
 function badge(text, cls='') { return `<span class="badge ${cls}">${escapeHtml(text)}</span>`; }
@@ -1133,6 +1773,7 @@ function renderResults() {
     if (place.amenities.rentalTent === 'yes') b.push(badge('Mietzelt', 'neutral'));
     if (place.amenities.bungalow === 'yes') b.push(badge('Bungalow/Hütte', 'neutral'));
     if (state.personal[place.key]?.visited) b.push(badge('✓ Besucht', 'neutral'));
+    if (place.routeStopIndex) b.unshift(badge(`Übernachtung ${place.routeStopIndex}`, 'route-badge'));
     const fav = state.favorites.has(place.key);
     const dist = place.distanceKm ?? place.routeDistanceKm;
     const selected = state.compare.has(place.key);
@@ -1143,7 +1784,7 @@ function renderResults() {
       place.amenities.shower === 'yes' ? '◌ Dusche' : '',
       place.amenities.wifi === 'yes' ? '⌁ WLAN' : ''
     ].filter(Boolean).slice(0,3);
-    return `<article class="result-item" data-key="${escapeHtml(place.key)}">
+    return `<article class="result-item ${state.selectedPlaceKey === place.key ? 'selected' : ''}" data-key="${escapeHtml(place.key)}" tabindex="0" role="button" aria-pressed="${state.selectedPlaceKey === place.key ? 'true' : 'false'}" aria-label="${escapeHtml(place.name)} auf der Karte anzeigen">
       <div class="result-card-shell">
         <div class="result-visual ${place.tourism === 'caravan_site' ? 'caravan' : ''}">${siteIconSvg(place.tourism)}</div>
         <div class="result-content">
@@ -1154,7 +1795,7 @@ function renderResults() {
           </div>
           ${b.length ? `<div class="badges">${b.join('')}</div>` : ''}
           <div class="result-facts">
-            ${dist != null ? `<span>⌖ ${dist < 10 ? dist.toFixed(1) : Math.round(dist)} km${place.routeDistanceKm != null ? ' von Route*' : ''}</span>` : ''}
+            ${dist != null ? `<span>⌖ ${dist < 10 ? dist.toFixed(1) : Math.round(dist)} km${place.routeStopIndex ? ` von Stopp ${place.routeStopIndex}` : (place.routeDistanceKm != null ? ' von Route*' : '')}</span>` : ''}
             ${place.priceNight != null ? `<span>€ ca. ${place.priceNight.toFixed(2).replace('.', ',')} / Nacht*</span>` : ''}
             ${facts.map(x => `<span>${x}</span>`).join('')}
           </div>
@@ -1180,12 +1821,13 @@ function placeMarker(place) {
   const marker = L.marker([place.lat, place.lon], {
     icon: L.divIcon({
       className: 'camp-map-marker-wrap',
-      html: `<div class="camp-map-marker ${place.tourism === 'caravan_site' ? 'caravan' : ''}"><span>${siteIconSvg(place.tourism)}</span></div>`,
+      html: `<div class="camp-map-marker ${place.tourism === 'caravan_site' ? 'caravan' : ''} ${state.selectedPlaceKey === place.key ? 'selected' : ''}"><span>${siteIconSvg(place.tourism)}</span></div>`,
       iconSize: [38,42], iconAnchor: [19,38], popupAnchor: [0,-35]
     }),
     title: place.name
   });
   marker.bindPopup(`<div class="map-popup"><h3>${escapeHtml(place.name)}</h3><p>${escapeHtml(place.typeLabel)}${place.stars ? ` · ${place.stars} ★` : ''}</p><button class="mini-btn" onclick="window.Campingfinder.openDetails('${place.key.replace(/'/g, "\\'")}')">Details</button></div>`);
+  marker.on('click', () => selectPlaceOnMap(place.key, { openPopup:false, scrollList:true }));
   marker.addTo(markerLayer);
   state.markers.set(place.key, marker);
 }
@@ -1225,20 +1867,56 @@ function renderMarkers() {
   });
 }
 
-function openPlaceOnMap(key) {
-  const place=getPlaceByKey(key); if(!place)return;
-  map.setView([place.lat,place.lon],15,{animate:true});
-  setTimeout(()=>{ renderMarkers(); state.markers.get(key)?.openPopup(); },180);
+function setSelectedResultCard(key, scrollList=false) {
+  els.results?.querySelectorAll('.result-item').forEach(card => {
+    const selected = !!key && card.dataset.key === key;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-pressed', String(selected));
+  });
+  if (scrollList && key) {
+    const card = [...(els.results?.querySelectorAll('.result-item') || [])].find(node => node.dataset.key === key);
+    card?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
 }
 
-function fitResults() {
+function switchMobileToMapIfNeeded() {
+  if (!window.matchMedia?.('(max-width: 780px)').matches) return;
+  const area = $('mapArea'); if (!area) return;
+  area.dataset.mobileView = 'map';
+  area.querySelectorAll('.mobile-view-toggle button').forEach(btn => btn.classList.toggle('active', btn.dataset.mobileView === 'map'));
+  setTimeout(() => map.invalidateSize(), 80);
+}
+
+function selectPlaceOnMap(key, { openPopup=true, scrollList=false } = {}) {
+  const place=getPlaceByKey(key); if(!place)return;
+  state.selectedPlaceKey = key;
+  setSelectedResultCard(key, scrollList);
+  switchMobileToMapIfNeeded();
+  map.setView([place.lat,place.lon],15,{animate:true});
+  setTimeout(()=>{
+    renderMarkers();
+    setSelectedResultCard(key, scrollList);
+    if (openPopup) state.markers.get(key)?.openPopup();
+  },180);
+}
+
+function openPlaceOnMap(key) {
+  selectPlaceOnMap(key, { openPopup:true, scrollList:false });
+}
+
+function fitResults({ clearSelection=true } = {}) {
   const places = state.filteredPlaces;
   if (!places.length) return;
+  if (clearSelection) {
+    state.selectedPlaceKey = null;
+    setSelectedResultCard(null);
+  }
   if (places.length === 1) map.setView([places[0].lat, places[0].lon], 14);
   else {
     const bounds = L.latLngBounds(places.slice(0, 1200).map(p => [p.lat, p.lon]));
     map.fitBounds(bounds, { padding: [30,30], maxZoom: 13 });
   }
+  setTimeout(renderMarkers, 120);
 }
 
 function updateStats() {
@@ -1604,13 +2282,13 @@ async function openDetails(key) {
 
 
 const I18N = {
-  de:{tagline:'Campingplätze & Wohnmobilstellplätze in Europa',subtagline:'Live-Suche · Route · Wetter · Favoriten',install:'App installieren',navFinder:'🔎 Finder',navRoute:'🛣️ Route',navMine:'★ Meine Plätze',navHelpers:'🧰 Camping-Helfer',finderTitle:'Campingplatz-Finder',finderIntro:'Europaweit suchen oder Plätze in deiner Nähe finden.',nearMe:'📍 In meiner Nähe',country:'Land',place:'Ort / Region / Name',siteType:'Platzart',searchCountry:'Land durchsuchen',searchMap:'Kartenbereich durchsuchen',filters:'Filter',routeTitle:'Campingplätze entlang deiner Route',routeIntro:'Start und Ziel eingeben – Campingfinder sucht Plätze im gewählten Korridor.'},
-  en:{tagline:'Campsites & motorhome stopovers across Europe',subtagline:'Live search · Route · Weather · Favourites',install:'Install app',navFinder:'🔎 Finder',navRoute:'🛣️ Route',navMine:'★ My places',navHelpers:'🧰 Camping tools',finderTitle:'Campsite finder',finderIntro:'Search across Europe or find sites near you.',nearMe:'📍 Near me',country:'Country',place:'Place / region / name',siteType:'Site type',searchCountry:'Search country',searchMap:'Search map area',filters:'Filters',routeTitle:'Campsites along your route',routeIntro:'Enter start and destination – Campingfinder searches the selected corridor.'},
-  nl:{tagline:'Campings & camperplaatsen in Europa',subtagline:'Live zoeken · Route · Weer · Favorieten',install:'App installeren',navFinder:'🔎 Zoeken',navRoute:'🛣️ Route',navMine:'★ Mijn plaatsen',navHelpers:'🧰 Campinghulp',finderTitle:'Campingzoeker',finderIntro:'Zoek in heel Europa of vind plaatsen in de buurt.',nearMe:'📍 In mijn buurt',country:'Land',place:'Plaats / regio / naam',siteType:'Type plaats',searchCountry:'Land doorzoeken',searchMap:'Kaartgebied doorzoeken',filters:'Filters',routeTitle:'Campings langs je route',routeIntro:'Voer vertrek en bestemming in – Campingfinder zoekt in de gekozen corridor.'},
-  fr:{tagline:'Campings & aires de camping-car en Europe',subtagline:'Recherche · Itinéraire · Météo · Favoris',install:"Installer l’app",navFinder:'🔎 Recherche',navRoute:'🛣️ Itinéraire',navMine:'★ Mes lieux',navHelpers:'🧰 Outils camping',finderTitle:'Recherche de campings',finderIntro:'Cherchez dans toute l’Europe ou près de vous.',nearMe:'📍 Autour de moi',country:'Pays',place:'Lieu / région / nom',siteType:'Type de site',searchCountry:'Rechercher le pays',searchMap:'Rechercher sur la carte',filters:'Filtres',routeTitle:'Campings le long de votre itinéraire',routeIntro:'Saisissez départ et destination – Campingfinder recherche dans le corridor choisi.'},
-  it:{tagline:'Campeggi & aree camper in Europa',subtagline:'Ricerca · Percorso · Meteo · Preferiti',install:'Installa app',navFinder:'🔎 Cerca',navRoute:'🛣️ Percorso',navMine:'★ I miei posti',navHelpers:'🧰 Strumenti camping',finderTitle:'Trova campeggi',finderIntro:'Cerca in tutta Europa o trova posti vicino a te.',nearMe:'📍 Vicino a me',country:'Paese',place:'Luogo / regione / nome',siteType:'Tipo di area',searchCountry:'Cerca nel paese',searchMap:'Cerca nella mappa',filters:'Filtri',routeTitle:'Campeggi lungo il percorso',routeIntro:'Inserisci partenza e destinazione – Campingfinder cerca nel corridoio scelto.'},
-  es:{tagline:'Campings & áreas de autocaravanas en Europa',subtagline:'Búsqueda · Ruta · Tiempo · Favoritos',install:'Instalar app',navFinder:'🔎 Buscar',navRoute:'🛣️ Ruta',navMine:'★ Mis lugares',navHelpers:'🧰 Herramientas',finderTitle:'Buscador de campings',finderIntro:'Busca por Europa o encuentra lugares cerca de ti.',nearMe:'📍 Cerca de mí',country:'País',place:'Lugar / región / nombre',siteType:'Tipo de lugar',searchCountry:'Buscar país',searchMap:'Buscar zona del mapa',filters:'Filtros',routeTitle:'Campings en tu ruta',routeIntro:'Introduce origen y destino – Campingfinder busca en el corredor elegido.'},
-  pl:{tagline:'Kempingi i miejsca dla kamperów w Europie',subtagline:'Wyszukiwanie · Trasa · Pogoda · Ulubione',install:'Zainstaluj aplikację',navFinder:'🔎 Szukaj',navRoute:'🛣️ Trasa',navMine:'★ Moje miejsca',navHelpers:'🧰 Narzędzia',finderTitle:'Wyszukiwarka kempingów',finderIntro:'Szukaj w całej Europie lub znajdź miejsca w pobliżu.',nearMe:'📍 W pobliżu',country:'Kraj',place:'Miejsce / region / nazwa',siteType:'Rodzaj miejsca',searchCountry:'Szukaj w kraju',searchMap:'Szukaj na mapie',filters:'Filtry',routeTitle:'Kempingi wzdłuż trasy',routeIntro:'Podaj start i cel – Campingfinder wyszuka miejsca w wybranym korytarzu.'}
+  de:{tagline:'Campingplätze & Wohnmobilstellplätze in Europa',subtagline:'Live-Suche · Route · Wetter · Favoriten',install:'App installieren',navFinder:'🔎 Finder',navRoute:'🛣️ Route',navMine:'★ Meine Plätze',navHelpers:'🧰 Camping-Helfer',finderTitle:'Campingplatz-Finder',finderIntro:'Europaweit suchen oder Plätze in deiner Nähe finden.',nearMe:'📍 In meiner Nähe',country:'Land',place:'Ort / Region / Name',siteType:'Platzart',searchCountry:'Land durchsuchen',searchMap:'Kartenbereich durchsuchen',filters:'Filter',routeTitle:'Campingplätze an deinen Übernachtungsstopps',routeIntro:'Start, Ziel und Zwischenübernachtungen wählen – Campingfinder plant gleichmäßige Fahretappen und sucht rund um die Stopps.'},
+  en:{tagline:'Campsites & motorhome stopovers across Europe',subtagline:'Live search · Route · Weather · Favourites',install:'Install app',navFinder:'🔎 Finder',navRoute:'🛣️ Route',navMine:'★ My places',navHelpers:'🧰 Camping tools',finderTitle:'Campsite finder',finderIntro:'Search across Europe or find sites near you.',nearMe:'📍 Near me',country:'Country',place:'Place / region / name',siteType:'Site type',searchCountry:'Search country',searchMap:'Search map area',filters:'Filters',routeTitle:'Campsites at your overnight stops',routeIntro:'Choose start, destination and overnight stops – Campingfinder splits the trip into even driving stages and searches near the stops.'},
+  nl:{tagline:'Campings & camperplaatsen in Europa',subtagline:'Live zoeken · Route · Weer · Favorieten',install:'App installeren',navFinder:'🔎 Zoeken',navRoute:'🛣️ Route',navMine:'★ Mijn plaatsen',navHelpers:'🧰 Campinghulp',finderTitle:'Campingzoeker',finderIntro:'Zoek in heel Europa of vind plaatsen in de buurt.',nearMe:'📍 In mijn buurt',country:'Land',place:'Plaats / regio / naam',siteType:'Type plaats',searchCountry:'Land doorzoeken',searchMap:'Kaartgebied doorzoeken',filters:'Filters',routeTitle:'Campings bij je overnachtingsstops',routeIntro:'Kies vertrek, bestemming en overnachtingen – Campingfinder verdeelt de rit in gelijke etappes en zoekt rond de stops.'},
+  fr:{tagline:'Campings & aires de camping-car en Europe',subtagline:'Recherche · Itinéraire · Météo · Favoris',install:"Installer l’app",navFinder:'🔎 Recherche',navRoute:'🛣️ Itinéraire',navMine:'★ Mes lieux',navHelpers:'🧰 Outils camping',finderTitle:'Recherche de campings',finderIntro:'Cherchez dans toute l’Europe ou près de vous.',nearMe:'📍 Autour de moi',country:'Pays',place:'Lieu / région / nom',siteType:'Type de site',searchCountry:'Rechercher le pays',searchMap:'Rechercher sur la carte',filters:'Filtres',routeTitle:'Campings près de vos étapes de nuit',routeIntro:'Choisissez départ, destination et nuitées – Campingfinder répartit le trajet en étapes régulières et cherche autour des arrêts.'},
+  it:{tagline:'Campeggi & aree camper in Europa',subtagline:'Ricerca · Percorso · Meteo · Preferiti',install:'Installa app',navFinder:'🔎 Cerca',navRoute:'🛣️ Percorso',navMine:'★ I miei posti',navHelpers:'🧰 Strumenti camping',finderTitle:'Trova campeggi',finderIntro:'Cerca in tutta Europa o trova posti vicino a te.',nearMe:'📍 Vicino a me',country:'Paese',place:'Luogo / regione / nome',siteType:'Tipo di area',searchCountry:'Cerca nel paese',searchMap:'Cerca nella mappa',filters:'Filtri',routeTitle:'Campeggi vicino alle soste notturne',routeIntro:'Scegli partenza, destinazione e pernottamenti – Campingfinder divide il viaggio in tappe regolari e cerca vicino alle soste.'},
+  es:{tagline:'Campings & áreas de autocaravanas en Europa',subtagline:'Búsqueda · Ruta · Tiempo · Favoritos',install:'Instalar app',navFinder:'🔎 Buscar',navRoute:'🛣️ Ruta',navMine:'★ Mis lugares',navHelpers:'🧰 Herramientas',finderTitle:'Buscador de campings',finderIntro:'Busca por Europa o encuentra lugares cerca de ti.',nearMe:'📍 Cerca de mí',country:'País',place:'Lugar / región / nombre',siteType:'Tipo de lugar',searchCountry:'Buscar país',searchMap:'Buscar zona del mapa',filters:'Filtros',routeTitle:'Campings cerca de tus paradas nocturnas',routeIntro:'Elige origen, destino y pernoctaciones – Campingfinder divide el viaje en etapas equilibradas y busca cerca de las paradas.'},
+  pl:{tagline:'Kempingi i miejsca dla kamperów w Europie',subtagline:'Wyszukiwanie · Trasa · Pogoda · Ulubione',install:'Zainstaluj aplikację',navFinder:'🔎 Szukaj',navRoute:'🛣️ Trasa',navMine:'★ Moje miejsca',navHelpers:'🧰 Narzędzia',finderTitle:'Wyszukiwarka kempingów',finderIntro:'Szukaj w całej Europie lub znajdź miejsca w pobliżu.',nearMe:'📍 W pobliżu',country:'Kraj',place:'Miejsce / region / nazwa',siteType:'Rodzaj miejsca',searchCountry:'Szukaj w kraju',searchMap:'Szukaj na mapie',filters:'Filtry',routeTitle:'Kempingi przy noclegowych postojach',routeIntro:'Wybierz start, cel i liczbę noclegów – Campingfinder dzieli trasę na równe etapy i szuka miejsc przy postojach.'}
 };
 function applyLanguage(lang) {
   state.language = I18N[lang] ? lang : 'de';
@@ -1627,7 +2305,7 @@ function switchMapLayer(name) {
   const next = mapLayers[name] || mapLayers.osm;
   if (activeMapLayer === next) return;
   map.removeLayer(activeMapLayer); next.addTo(map); activeMapLayer = next;
-  markerLayer.bringToFront?.(); state.routeLayer?.bringToFront?.(); state.tripLayer?.bringToFront?.();
+  markerLayer.bringToFront?.(); state.routeLayer?.bringToFront?.(); routePlanLayer?.bringToFront?.(); state.tripLayer?.bringToFront?.();
 }
 
 function handleSavedAction(target) {
@@ -2182,14 +2860,27 @@ window.Campingfinder = { openDetails };
 
 els.results.addEventListener('click', e => {
   const target = e.target.closest('[data-action]');
-  if (!target) return;
-  const key = target.dataset.key;
-  if (target.dataset.action === 'favorite') toggleFavorite(key);
-  if (target.dataset.action === 'details') openDetails(key);
-  if (target.dataset.action === 'share') sharePlace(key);
-  if (target.dataset.action === 'trip') addToTrip(key);
-  if (target.dataset.action === 'compare') toggleCompare(key);
-  if (target.dataset.action === 'map') openPlaceOnMap(key);
+  if (target) {
+    const key = target.dataset.key;
+    if (target.dataset.action === 'favorite') toggleFavorite(key);
+    if (target.dataset.action === 'details') openDetails(key);
+    if (target.dataset.action === 'share') sharePlace(key);
+    if (target.dataset.action === 'trip') addToTrip(key);
+    if (target.dataset.action === 'compare') toggleCompare(key);
+    if (target.dataset.action === 'map') openPlaceOnMap(key);
+    return;
+  }
+  if (e.target.closest('a, button, input, select, textarea, label')) return;
+  const card = e.target.closest('.result-item[data-key]');
+  if (card) selectPlaceOnMap(card.dataset.key, { openPopup:true, scrollList:false });
+});
+els.results.addEventListener('keydown', e => {
+  if (!['Enter',' '].includes(e.key)) return;
+  if (e.target.closest('a, button, input, select, textarea')) return;
+  const card = e.target.closest('.result-item[data-key]');
+  if (!card) return;
+  e.preventDefault();
+  selectPlaceOnMap(card.dataset.key, { openPopup:true, scrollList:false });
 });
 
 
@@ -2274,10 +2965,10 @@ els.countryBtn.addEventListener('click', searchCountry);
 els.mapBtn.addEventListener('click', searchMapArea);
 els.nearMe?.addEventListener('click', searchNearMe);
 els.routeBtn?.addEventListener('click', searchRoute);
-$('routeSwapBtn')?.addEventListener('click',()=>{const a=els.routeStart?.value||'',b=els.routeEnd?.value||'';if(els.routeStart)els.routeStart.value=b;if(els.routeEnd)els.routeEnd.value=a;});
-$('routeUseLocationBtn')?.addEventListener('click',()=>{const btn=$('routeUseLocationBtn');if(!navigator.geolocation){alert('Standortfunktion ist in diesem Browser nicht verfügbar.');return;}if(btn){btn.disabled=true;btn.textContent='Standort wird bestimmt …';}navigator.geolocation.getCurrentPosition(pos=>{if(els.routeStart)els.routeStart.value=`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;if(btn){btn.disabled=false;btn.textContent='Eigenen Standort als Start';}},()=>{if(btn){btn.disabled=false;btn.textContent='Eigenen Standort als Start';}alert('Standort konnte nicht bestimmt werden.');},{timeout:10000,maximumAge:300000});});
+$('routeSwapBtn')?.addEventListener('click',()=>{const a=els.routeStart?.value||'',b=els.routeEnd?.value||'';if(els.routeStart)els.routeStart.value=b;if(els.routeEnd)els.routeEnd.value=a;const sel=state.routeSelections.start;state.routeSelections.start=state.routeSelections.end;state.routeSelections.end=sel;const rs=els.routeStartResolved?.textContent||'',re=els.routeEndResolved?.textContent||'';if(els.routeStartResolved)els.routeStartResolved.textContent=re;if(els.routeEndResolved)els.routeEndResolved.textContent=rs;});
+$('routeUseLocationBtn')?.addEventListener('click',()=>{const btn=$('routeUseLocationBtn');if(!navigator.geolocation){alert('Standortfunktion ist in diesem Browser nicht verfügbar.');return;}if(btn){btn.disabled=true;btn.textContent='Standort wird bestimmt …';}navigator.geolocation.getCurrentPosition(pos=>{if(els.routeStart)els.routeStart.value=`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;state.routeSelections.start={lat:pos.coords.latitude,lon:pos.coords.longitude,name:'Eigener Standort',type:'location'};if(els.routeStartResolved){els.routeStartResolved.textContent='✓ Eigener Standort';els.routeStartResolved.classList.add('ok');els.routeStartResolved.classList.remove('warn');}if(btn){btn.disabled=false;btn.textContent='Eigenen Standort als Start';}},()=>{if(btn){btn.disabled=false;btn.textContent='Eigenen Standort als Start';}alert('Standort konnte nicht bestimmt werden.');},{timeout:10000,maximumAge:300000});});
 els.mapLayer?.addEventListener('change', () => switchMapLayer(els.mapLayer.value));
-els.fitBtn.addEventListener('click', fitResults);
+els.fitBtn.addEventListener('click', () => fitResults({ clearSelection:true }));
 els.closeDialog.addEventListener('click', () => els.dialog.close());
 els.dialog.addEventListener('click', e => { if (e.target === els.dialog) els.dialog.close(); });
 els.place.addEventListener('keydown', e => { if (e.key === 'Enter') searchCountry(); });
@@ -2289,6 +2980,30 @@ els.favoritesOnly.addEventListener('click', () => {
   applyFilters(false);
 });
 
+els.placeChoiceOptions?.addEventListener('click', e => {
+  const btn=e.target.closest('[data-place-choice]');
+  if(!btn || !placeChoicePending) return;
+  const idx=Number(btn.dataset.placeChoice);
+  const candidate=placeChoicePending.candidates[idx];
+  if(!candidate) return;
+  const { resolve }=placeChoicePending;
+  placeChoicePending=null;
+  if(els.placeChoiceDialog?.open) els.placeChoiceDialog.close();
+  resolve(candidate);
+});
+els.closePlaceChoiceBtn?.addEventListener('click', cancelPlaceChoice);
+els.placeChoiceDialog?.addEventListener('cancel', e => { e.preventDefault(); cancelPlaceChoice(); });
+els.placeChoiceDialog?.addEventListener('click', e => { if(e.target===els.placeChoiceDialog) cancelPlaceChoice(); });
+els.routeStart?.addEventListener('input', () => scheduleRouteSuggestions('start'));
+els.routeEnd?.addEventListener('input', () => scheduleRouteSuggestions('end'));
+[els.routeStartSuggestions, els.routeEndSuggestions].forEach(list => list?.addEventListener('click', e => {
+  const btn=e.target.closest('[data-route-choice]'); if(!btn)return;
+  const which=btn.dataset.routeChoice; const idx=Number(btn.dataset.index); const candidates=list._candidates||[];
+  if(candidates[idx]) selectRouteCandidate(which,candidates[idx]);
+}));
+document.addEventListener('click', e => {
+  if (!e.target.closest('.route-location-field')) { if(els.routeStartSuggestions)els.routeStartSuggestions.hidden=true; if(els.routeEndSuggestions)els.routeEndSuggestions.hidden=true; }
+});
 els.routeEnd?.addEventListener('keydown', e => { if (e.key === 'Enter') searchRoute(); });
 els.language?.addEventListener('change', () => applyLanguage(els.language.value));
 els.addList?.addEventListener('click', () => {
