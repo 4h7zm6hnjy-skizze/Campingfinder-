@@ -260,12 +260,12 @@
     </section>
 
     <section id="routePlanner" class="route-card card">
-      <div class="section-title-row"><div><span class="section-kicker">ROUTENPLANER</span><h2 data-i18n="routeTitle">Campingplätze an deinen Übernachtungsstopps</h2><p data-i18n="routeIntro">Start, Ziel und Zwischenübernachtungen wählen. Campingfinder teilt die Fahrt in möglichst gleich lange Etappen und sucht Plätze nur rund um die geplanten Stopps.</p></div></div>
+      <div class="section-title-row"><div><span class="section-kicker">ROUTENPLANER</span><h2 data-i18n="routeTitle">Campingplätze an deinen Übernachtungsstopps</h2><p data-i18n="routeIntro">Start, Ziel und Zwischenübernachtungen wählen. Campingfinder setzt die Idealstopps gleichmäßig, findet dort automatisch den nächsten Platz und berechnet die Route über diese Übernachtungsplätze neu.</p></div></div>
       <div class="route-grid">
         <label class="route-location-field"><span>Start</span><input id="routeStart" type="search" placeholder="z. B. Meinerzhagen" autocomplete="off" aria-autocomplete="list" aria-controls="routeStartSuggestions" /><div id="routeStartSuggestions" class="route-suggestions" role="listbox" hidden></div><small id="routeStartResolved" class="route-resolved"></small></label>
         <label class="route-location-field"><span>Ziel</span><input id="routeEnd" type="search" placeholder="z. B. Gardasee" autocomplete="off" aria-autocomplete="list" aria-controls="routeEndSuggestions" /><div id="routeEndSuggestions" class="route-suggestions" role="listbox" hidden></div><small id="routeEndResolved" class="route-resolved"></small></label>
         <label><span>Zwischenübernachtungen</span><select id="routeOvernights"><option value="0">Keine – ganze Route</option><option value="1" selected>1 Übernachtung</option><option value="2">2 Übernachtungen</option><option value="3">3 Übernachtungen</option><option value="4">4 Übernachtungen</option><option value="5">5 Übernachtungen</option><option value="6">6 Übernachtungen</option><option value="7">7 Übernachtungen</option><option value="8">8 Übernachtungen</option></select></label>
-        <label><span>Suchradius am Stopp</span><select id="routeCorridor"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="25000">25 km</option></select></label>
+        <label><span>Start-Suchradius am Stopp</span><select id="routeCorridor"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="25000">25 km</option></select></label>
         <button id="routeSearchBtn" class="primary-btn">Route &amp; Stopps planen</button>
       </div>
       <p class="route-planner-note">Bei 1 Übernachtung liegt der Zielpunkt exakt bei 50 % der Strecke. Bei mehreren Übernachtungen wird die Route in gleich lange Fahretappen geteilt.</p>

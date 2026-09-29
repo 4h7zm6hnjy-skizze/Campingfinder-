@@ -67,7 +67,9 @@ const state = {
   overpassCache: new Map(),
   routeSelections: { start: null, end: null },
   selectedPlaceKey: null,
-  countryBoundaries: new Map()
+  countryBoundaries: new Map(),
+  routeAutoStopKeys: new Set(),
+  routeAutoStopPlaces: []
 };
 if (!state.trip || !Array.isArray(state.trip.stages)) state.trip = { name: 'Meine Reise', startDate: '', stages: [] };
 if (state.trip.startDate == null) state.trip.startDate = '';
@@ -1047,6 +1049,8 @@ async function searchNearbyChunked(lat, lon, radiusMeters) {
 }
 
 async function searchNearMe() {
+  state.routeAutoStopKeys.clear();
+  state.routeAutoStopPlaces=[];
   if (!navigator.geolocation) { showError('Standortzugriff wird von diesem Browser nicht unterstützt.'); return; }
   setLoading('Standort wird bestimmt …');
   navigator.geolocation.getCurrentPosition(async pos => {
@@ -1118,20 +1122,71 @@ function routeStopSearchParts(stopPoints, corridor) {
   });
   return parts.join('\n');
 }
-async function searchRouteStopsChunked(stopPoints, corridor) {
-  const rawById = new Map();
-  let failed = 0;
-  for (let i=0; i<stopPoints.length; i++) {
-    els.status.textContent = `Campingplätze an Übernachtungsstopp ${i+1} von ${stopPoints.length} werden gesucht …`;
-    const query = `[out:json][timeout:28];\n(${routeStopSearchParts([stopPoints[i]],corridor)});\nout body center qt;`;
+
+function routeStopRadiusPlan(corridor) {
+  const base=Math.max(2000, Number(corridor || 10000));
+  return [...new Set([
+    base,
+    Math.max(base, 25000),
+    Math.max(base, 50000),
+    Math.max(base, 100000),
+    Math.max(base, 150000),
+    Math.max(base, 200000)
+  ])].sort((a,b)=>a-b);
+}
+
+async function findNearestRouteStopPlace(stop, stopIndex, corridor, usedKeys = new Set()) {
+  const radii=routeStopRadiusPlan(corridor);
+  let lastError=null;
+  for (const radius of radii) {
+    els.status.textContent=`Übernachtung ${stopIndex+1}: nächster Platz wird bis ${Math.round(radius/1000)} km gesucht …`;
+    const query=`[out:json][timeout:24];\n(${routeStopSearchParts([stop],radius)});\nout body center qt;`;
     try {
-      const data = await overpass(query,{timeoutMs:25000,maxEndpoints:3});
-      for (const el of data.elements || []) rawById.set(`${el.type}/${el.id}`,el);
+      const data=await overpass(query,{timeoutMs:22000,maxEndpoints:3});
+      const candidates=(data.elements || []).map(el=>({raw:el,place:normalizePlace(el)})).filter(x=>x.place);
+      if (!candidates.length) continue;
+      candidates.forEach(x=>{x.distanceKm=haversineKm(stop.lat,stop.lon,x.place.lat,x.place.lon);});
+      candidates.sort((a,b)=>a.distanceKm-b.distanceKm || a.place.name.localeCompare(b.place.name,state.language));
+      const best=candidates.find(x=>!usedKeys.has(x.place.key));
+      if (!best) continue;
+      return {
+        ...stop,
+        lat:best.place.lat,
+        lon:best.place.lon,
+        targetLat:stop.lat,
+        targetLon:stop.lon,
+        place:best.place,
+        raw:best.raw,
+        placeKey:best.place.key,
+        name:best.place.name,
+        distanceFromIdealKm:best.distanceKm,
+        searchRadius:radius,
+        stopIndex:stopIndex+1
+      };
     } catch (err) {
-      failed++;
+      lastError=err;
     }
   }
-  return { elements:[...rawById.values()], failed };
+  return { ...stop, stopIndex:stopIndex+1, error:lastError || new Error('Kein Campingplatz gefunden.') };
+}
+
+async function resolveRouteStopPlaces(stopPoints, corridor) {
+  const resolved=[];
+  const rawById=new Map();
+  const usedKeys=new Set();
+  let failed=0;
+  for (let i=0;i<stopPoints.length;i++) {
+    const found=await findNearestRouteStopPlace(stopPoints[i],i,corridor,usedKeys);
+    if (found.place && found.raw) {
+      resolved.push(found);
+      usedKeys.add(found.placeKey);
+      rawById.set(`${found.raw.type}/${found.raw.id}`,found.raw);
+    } else {
+      failed++;
+      resolved.push(found);
+    }
+  }
+  return { stops:resolved, elements:[...rawById.values()], failed };
 }
 
 function nearestRouteStop(place, stopPoints) {
@@ -1163,7 +1218,9 @@ function renderRoutePlanMap(route, routeCoords, start, end, stopPoints, legs) {
   stopPoints.forEach((stop,index)=>{
     const leg=legs[index] || {};
     stopCumulativeDistance += Number(leg.distance || 0);
-    makePointMarker(stop.lat,stop.lon,String(index+1),'stop',`Übernachtung ${index+1} · nach ca. ${Math.round(stopCumulativeDistance/1000)} km · Etappe ${formatRouteDuration(leg.duration)}`);
+    const placeName=stop.name ? ` · ${stop.name}` : '';
+    const detour=Number.isFinite(stop.distanceFromIdealKm) ? ` · ${stop.distanceFromIdealKm.toFixed(1)} km vom idealen Stopp` : '';
+    makePointMarker(stop.lat,stop.lon,String(index+1),'stop',`Übernachtung ${index+1}${placeName} · nach ca. ${Math.round(stopCumulativeDistance/1000)} km · Etappe ${formatRouteDuration(leg.duration)}${detour}`);
   });
   makePointMarker(end.lat,end.lon,'Z','end',`Ziel · ${routeShortName(end)}`);
 
@@ -1191,14 +1248,19 @@ function renderRouteSummary(start,end,route,legs,overnights,corridor) {
   const totalKm=Math.round(Number(route.distance||0)/1000);
   const stopText=overnights===0
     ? `Keine Zwischenübernachtung · Plätze im Korridor der gesamten Route`
-    : `${overnights} Zwischenübernachtung${overnights===1?'':'en'} · ${overnights+1} Fahretappen · Plätze nur im Umkreis von ${Math.round(corridor/1000)} km um die Stopppunkte`;
+    : `${overnights} Zwischenübernachtung${overnights===1?'':'en'} · ${overnights+1} Fahretappen · nächster Campingplatz je Idealstopp wird automatisch gewählt und die Route dorthin angepasst`;
   let cumulativeKm=0;
+  const stops=state.routeAutoStopPlaces || [];
+  const stopLabel=(idx)=>stops[idx]?.name ? `Stopp ${idx+1}: ${stops[idx].name}` : `Stopp ${idx+1}`;
   const legCards=(legs||[]).map((leg,index)=>{
     const km=Math.round(Number(leg.distance||0)/1000);
     cumulativeKm += km;
-    const from=index===0 ? routeShortName(start) : `Stopp ${index}`;
-    const to=index===legs.length-1 ? routeShortName(end) : `Stopp ${index+1}`;
-    return `<div class="route-leg-card"><span>Etappe ${index+1}</span><strong>${km} km · ${escapeHtml(formatRouteDuration(leg.duration))}</strong><small>${escapeHtml(from)} → ${escapeHtml(to)}${index<legs.length-1 ? ` · Übernachtung nach ca. ${cumulativeKm} km` : ''}</small></div>`;
+    const from=index===0 ? routeShortName(start) : stopLabel(index-1);
+    const to=index===legs.length-1 ? routeShortName(end) : stopLabel(index);
+    const stopInfo=index<legs.length-1 && stops[index]
+      ? ` · ${Number.isFinite(stops[index].distanceFromIdealKm) ? `${stops[index].distanceFromIdealKm.toFixed(1)} km vom idealen Stopp` : 'automatisch gewählt'}`
+      : '';
+    return `<div class="route-leg-card"><span>Etappe ${index+1}</span><strong>${km} km · ${escapeHtml(formatRouteDuration(leg.duration))}</strong><small>${escapeHtml(from)} → ${escapeHtml(to)}${index<legs.length-1 ? ` · Übernachtung nach ca. ${cumulativeKm} km${stopInfo}` : ''}</small></div>`;
   }).join('');
   els.routeSummary.hidden=false;
   els.routeSummary.innerHTML=`<div class="route-summary-head"><div><strong>${escapeHtml(routeShortName(start))} → ${escapeHtml(routeShortName(end))}</strong><span>${escapeHtml(stopText)}</span></div><div class="route-total"><strong>${totalKm} km</strong><span>${escapeHtml(formatRouteDuration(route.duration))}</span></div></div><div class="route-leg-grid">${legCards}</div>`;
@@ -1209,14 +1271,14 @@ async function searchRoute() {
   if (!startText || !endText) { showError('Bitte Start und Ziel für die Route eingeben.'); return; }
   setLoading('Route und Übernachtungsstopps werden berechnet …');
   els.routeBtn.disabled = true;
+  state.routeAutoStopKeys.clear();
+  state.routeAutoStopPlaces = [];
   try {
     const start = await ensureRouteSelection('start', startText);
     const end = await ensureRouteSelection('end', endText);
     const overnights=Math.max(0,Math.min(8,Number(els.routeOvernights?.value || 0)));
     const corridor = Number(els.routeCorridor.value || 10000);
 
-    // First calculate the direct route. Its geometry is used to place the requested
-    // overnight targets at equal route-distance intervals (1 stop = exactly 50%).
     const initialUrl = `${OSRM_ENDPOINT}/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&steps=false`;
     const initialResponse = await fetch(initialUrl);
     if (!initialResponse.ok) throw new Error('Routing-Dienst nicht erreichbar.');
@@ -1232,16 +1294,29 @@ async function searchRoute() {
       if(point) roughStops.push(point);
     }
 
-    // Recalculate with the target stop coordinates as via points. OSRM then gives us
-    // exact leg distance/time values for each driving day.
+    let resolvedStopSearch={stops:[],elements:[],failed:0};
+    let realStops=[];
+    if (roughStops.length) {
+      resolvedStopSearch=await resolveRouteStopPlaces(roughStops,corridor);
+      const missing=resolvedStopSearch.stops.filter(stop=>!stop.place);
+      if (missing.length) {
+        throw new Error(`Für ${missing.length} Übernachtungsstopp${missing.length===1?'':'s'} wurde selbst im erweiterten Suchbereich kein Camping- oder Wohnmobilplatz gefunden.`);
+      }
+      realStops=resolvedStopSearch.stops;
+      state.routeAutoStopPlaces=realStops;
+      state.routeAutoStopKeys=new Set(realStops.map(stop=>stop.placeKey).filter(Boolean));
+    }
+
     let finalData=initialData;
-    if(roughStops.length){
-      const points=[[start.lon,start.lat],...roughStops.map(p=>[p.lon,p.lat]),[end.lon,end.lat]];
+    if(realStops.length){
+      els.status.textContent='Route wird über die gefundenen Campingplätze neu berechnet …';
+      const points=[[start.lon,start.lat],...realStops.map(p=>[p.lon,p.lat]),[end.lon,end.lat]];
       const viaUrl=`${OSRM_ENDPOINT}/${points.map(p=>`${p[0]},${p[1]}`).join(';')}?overview=full&geometries=geojson&steps=false`;
       const viaResponse=await fetch(viaUrl);
-      if(!viaResponse.ok) throw new Error('Routing-Dienst konnte die Zwischenstopps nicht berechnen.');
+      if(!viaResponse.ok) throw new Error('Routing-Dienst konnte die Route über die Campingplätze nicht berechnen.');
       const viaData=await viaResponse.json();
-      if(viaData.code==='Ok' && viaData.routes?.length) finalData=viaData;
+      if(viaData.code!=='Ok' || !viaData.routes?.length) throw new Error('Die Route über die gefundenen Campingplätze konnte nicht berechnet werden.');
+      finalData=viaData;
     }
 
     const route=finalData.routes[0];
@@ -1249,9 +1324,12 @@ async function searchRoute() {
     const simplified=simplifyRouteCoordinates(coords,70);
     if(simplified.length<2) throw new Error('Routengeometrie fehlt.');
     const legs=route.legs?.length ? route.legs : [{distance:route.distance,duration:route.duration}];
-    const waypointStops=overnights>0
-      ? (finalData.waypoints || []).slice(1,-1).map((w,index)=>({lon:Number(w.location?.[0] ?? roughStops[index]?.lon),lat:Number(w.location?.[1] ?? roughStops[index]?.lat),index:index+1}))
-      : [];
+
+    const waypointStops=realStops.map((stop,index)=>({
+      ...stop,
+      index:index+1,
+      routedLocation:finalData.waypoints?.[index+1]?.location || [stop.lon,stop.lat]
+    }));
 
     state.routeGeometry=simplified;
     if(state.routeLayer) map.removeLayer(state.routeLayer);
@@ -1260,19 +1338,26 @@ async function searchRoute() {
     renderRouteSummary(start,end,route,legs,overnights,corridor);
     map.fitBounds(state.routeLayer.getBounds(),{padding:[34,34]});
 
-    let places;
     if(overnights>0 && waypointStops.length){
-      els.status.textContent=`Campingplätze an ${overnights} Übernachtungsstopp${overnights===1?'':'s'} werden gesucht …`;
-      places=await searchRouteStopsChunked(waypointStops,corridor);
-      if (!places.elements.length && places.failed >= waypointStops.length) throw new Error('Die Campingplatzsuche an den Übernachtungsstopps ist derzeit nicht erreichbar.');
-      state.currentSearchLabel=`${overnights} Übernachtungsstopp${overnights===1?'':'s'} · ${routeShortName(start)} → ${routeShortName(end)}`;
+      state.currentSearchLabel=`${overnights} automatische Übernachtung${overnights===1?'':'en'} · ${routeShortName(start)} → ${routeShortName(end)}`;
       if(els.sort) els.sort.value='distance';
-      ingestResults(places.elements || [],p=>{
-        const nearest=nearestRouteStop(p,waypointStops);
-        if(nearest){p.routeDistanceKm=nearest.km;p.routeStopIndex=nearest.index+1;p.routeStopTarget=nearest.stop;}
+      ingestResults(resolvedStopSearch.elements || [],p=>{
+        const exact=waypointStops.find(stop=>stop.placeKey===p.key);
+        if(exact){
+          p.routeDistanceKm=0;
+          p.routeStopIndex=exact.stopIndex;
+          p.routeStopTarget=exact;
+          p.routeAutoSelected=true;
+          p.routeIdealOffsetKm=exact.distanceFromIdealKm;
+        } else {
+          const nearest=nearestRouteStop(p,waypointStops);
+          if(nearest){p.routeDistanceKm=nearest.km;p.routeStopIndex=nearest.index+1;p.routeStopTarget=nearest.stop;}
+        }
       });
-      if (places.failed) els.status.textContent += ` · ${places.failed} Stopp-Abfrage(n) vorübergehend nicht geladen`;
+      els.status.textContent=`${waypointStops.length} Übernachtungsplatz${waypointStops.length===1?'':'plätze'} automatisch gewählt · Route angepasst`;
     } else {
+      state.routeAutoStopKeys.clear();
+      state.routeAutoStopPlaces=[];
       els.status.textContent='Campingplätze entlang der gesamten Route werden gesucht …';
       const line=simplified.map(c=>`${Number(c[1]).toFixed(5)},${Number(c[0]).toFixed(5)}`).join(',');
       const qParts=els.type.value==='camp_site'
@@ -1281,20 +1366,22 @@ async function searchRoute() {
           ? `nwr["tourism"="caravan_site"](around:${corridor},${line});`
           : `nwr["tourism"="camp_site"](around:${corridor},${line});\nnwr["tourism"="caravan_site"](around:${corridor},${line});`;
       const query=`[out:json][timeout:60];\n(${qParts});\nout body center qt;`;
-      places=await overpass(query);
+      const places=await overpass(query);
       state.currentSearchLabel=`Route ${routeShortName(start)} → ${routeShortName(end)}`;
       if(els.sort) els.sort.value='distance';
       ingestResults(places.elements || [],p=>{p.routeDistanceKm=distanceToRouteKm(p,simplified);});
     }
 
-    // Results are searched only around the stops, but the map should still show the
-    // complete journey with start, stop markers, segment km/time and destination.
     setTimeout(()=>{
       try{map.fitBounds(state.routeLayer.getBounds(),{padding:[34,34]});}catch{}
       state.routeLayer?.bringToFront?.();
       routePlanLayer?.bringToFront?.();
     },160);
-  } catch (err) { showError(err?.message || 'Routensuche fehlgeschlagen'); }
+  } catch (err) {
+    state.routeAutoStopKeys.clear();
+    state.routeAutoStopPlaces=[];
+    showError(err?.message || 'Routensuche fehlgeschlagen');
+  }
   finally { endLoading(); els.routeBtn.disabled = false; }
 }
 
@@ -1314,6 +1401,8 @@ function showError(message) {
 }
 
 async function searchCountry() {
+  state.routeAutoStopKeys.clear();
+  state.routeAutoStopPlaces=[];
   setLoading('Campingplätze werden gesucht …');
   try {
     const countryCode = els.country.value;
@@ -1381,6 +1470,8 @@ async function searchCountry() {
 }
 
 async function searchMapArea() {
+  state.routeAutoStopKeys.clear();
+  state.routeAutoStopPlaces=[];
   const b = map.getBounds();
   if (map.getZoom() < 5) {
     showError('Der sichtbare Kartenbereich ist sehr groß. Bitte etwas näher heranzoomen.');
@@ -1655,6 +1746,7 @@ function applySmartSearchText() {
 function applyFilters(fitMap = false) {
   const q = els.place.value.trim().toLowerCase();
   let places = state.allPlaces.filter(place => {
+    if (state.routeAutoStopKeys?.has(place.key)) return true;
     if (els.type?.value && els.type.value !== 'all' && place.tourism !== els.type.value) return false;
     if (q && state.currentSearchLabel !== q) {
       const hay = [place.name, place.address, place.tags.operator, place.tags.description, place.tags['addr:city'], place.tags['addr:place']].filter(Boolean).join(' ').toLowerCase();
@@ -1774,6 +1866,7 @@ function renderResults() {
     if (place.amenities.bungalow === 'yes') b.push(badge('Bungalow/Hütte', 'neutral'));
     if (state.personal[place.key]?.visited) b.push(badge('✓ Besucht', 'neutral'));
     if (place.routeStopIndex) b.unshift(badge(`Übernachtung ${place.routeStopIndex}`, 'route-badge'));
+    if (place.routeAutoSelected) b.unshift(badge('✓ Auto-Stopp', 'route-badge'));
     const fav = state.favorites.has(place.key);
     const dist = place.distanceKm ?? place.routeDistanceKm;
     const selected = state.compare.has(place.key);

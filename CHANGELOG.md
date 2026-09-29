@@ -1,3 +1,13 @@
+# v27
+
+- Routenplaner findet pro Idealstopp automatisch den nächstgelegenen Camping-/Wohnmobilplatz.
+- Suchradius erweitert sich bei Bedarf schrittweise bis 200 km.
+- Route wird über die realen Übernachtungsplätze neu berechnet.
+- Etappen-Kilometer und Fahrzeiten basieren auf der angepassten Route.
+- Automatisch gewählte Stopps werden trotz alter Finder-Filter sichtbar gehalten.
+- Doppelte Verwendung desselben Platzes bei mehreren Übernachtungen wird vermieden.
+- PWA-Cache auf v27 angehoben.
+
 # v26
 
 - Ergebnislisten auf PC, Tablet und Smartphone repariert.

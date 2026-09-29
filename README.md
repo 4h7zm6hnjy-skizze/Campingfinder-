@@ -1,6 +1,6 @@
-# Campingfinder v26
+# Campingfinder v27
 
-**Aktuelle Version: v26** – geprüfte Stabilitätsversion mit geografischer Meer-/Inland-Suche, vollständigerer intelligenter Ländersuche und robuster Stoppsuche im Routenplaner.
+**Aktuelle Version: v27** – Routenplaner mit automatisch gewählten nächstgelegenen Übernachtungsplätzen und Neuberechnung der Route über diese Plätze.
 
 **Slogan:** Ganz Europa gehört dir.
 
@@ -200,3 +200,13 @@ Der Routenplaner kann 0 bis 8 Zwischenübernachtungen berücksichtigen. Eine ein
 - Campingplatzabfragen an mehreren Übernachtungsstopps werden pro Stopp ausgeführt, damit ein einzelner Overpass-Timeout nicht die komplette Route verwirft.
 - Stoppmarker zeigen die kumulierte Strecke ab Start korrekt an.
 - Zusätzliche ARIA-Beschriftungen für zentrale Eingabefelder.
+
+
+## v27 – Automatische Campingstopps im Routenplaner
+
+- Idealstopps werden weiterhin gleichmäßig über die Strecke verteilt.
+- Für jeden Idealstopp sucht Campingfinder automatisch den nächstgelegenen Camping- oder Wohnmobilplatz.
+- Wenn im gewählten Start-Radius nichts gefunden wird, erweitert die App die Suche schrittweise bis maximal 200 km.
+- Die Route wird danach über die tatsächlich gefundenen Plätze neu berechnet; Kilometer und Fahrzeit der Etappen beziehen sich auf diese angepasste Route.
+- Automatisch gewählte Stopps bleiben in der Ergebnisliste sichtbar, auch wenn alte Finder-Filter noch aktiv sind.
+- Derselbe Platz wird nicht für zwei verschiedene Übernachtungsstopps verwendet.
