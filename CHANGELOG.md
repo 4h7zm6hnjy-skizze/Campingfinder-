@@ -1,5 +1,18 @@
 # Campingfinder – Changelog
 
+## v19 – Intelligente Küstensuche
+- „Frankreich und Meer“ sowie vergleichbare Länder+Meer-Suchen nutzen jetzt echte OpenStreetMap-Küstenlinien statt nur Text-Tags an Campingplätzen.
+- Campingplätze/Wohnmobilstellplätze werden bei Länder+Meer-Suche bis ca. 30 km Luftlinie von der Küste gesucht.
+- Küstensuche wird wie die normale Ländersuche in kleine Teilgebiete zerlegt, damit freie Overpass-Server weniger schnell überlasten.
+- Treffer aus der geografischen Küstensuche werden transparent als Küstennähe behandelt.
+
+## v18 – Eindeutige Ortsauswahl
+- Bei mehrfach vorkommenden Orts- und Städtenamen fragt Campingfinder jetzt nach dem gemeinten Ort.
+- Auswahl zeigt Ort, Region/Bundesland und Land sowie den vollständigen Nominatim-Namen.
+- Die Suche startet erst nach der Auswahl; Abbrechen verändert die bisherigen Treffer nicht.
+- Routensuche behält ihre bestehenden Start-/Zielvorschläge.
+- PWA-Cache auf v18 angehoben.
+
 ## v15 – robuste Länder-Suche
 - Große Länder werden nicht mehr in einer einzigen Overpass-Abfrage geladen.
 - Länder werden automatisch in kleinere Kartenbereiche aufgeteilt und schrittweise zusammengeführt.
@@ -39,3 +52,17 @@
 - Datenqualitätsanzeige
 - Reisebudget
 - Desktop-Splitansicht und Strg/Cmd+K
+## v16 – sichere Navigation / Ortsauswahl
+- Start und Ziel zeigen Ortsvorschläge vor der Routenberechnung.
+- Mehrdeutige Orte müssen bewusst ausgewählt werden.
+- Häufige Tippfehler wie „garderssee“ werden als Gardasee vorgeschlagen.
+- Die Route zeigt den tatsächlich aufgelösten Ortsnamen statt nur den eingegebenen Text.
+- Eigenen Standort und Start↔Ziel behalten die bestätigten Koordinaten.
+
+## v17
+- Ergebnisliste und Karte direkt miteinander verknüpft.
+- Klick auf einen Platz in der Liste zoomt auf den Platz und öffnet den Marker.
+- Ausgewählter Platz wird in Liste und Karte hervorgehoben.
+- Ohne Auswahl bzw. über ‘Alle Treffer’ wird die Karte automatisch auf alle aktuellen Treffer angepasst.
+- Auf Smartphones wechselt eine Platzauswahl automatisch zur Kartenansicht.
+

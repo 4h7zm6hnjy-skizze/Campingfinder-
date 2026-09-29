@@ -6,6 +6,10 @@
 
 Professionelle responsive Web-App zum Finden von Campingplätzen und Wohnmobilstellplätzen in Europa.
 
+## Intelligente Küstensuche (v19)
+Die intelligente Suche erkennt Kombinationen wie „Frankreich und Meer“. Bei einer Länder+Meer-Suche werden Campingplätze nicht nur anhand unvollständiger Platz-Tags gefiltert, sondern geografisch bis ungefähr 30 km von echten `natural=coastline`-Linien aus OpenStreetMap gesucht. Dadurch werden wesentlich mehr reale Küstenplätze gefunden. Die Suche bleibt ohne kostenpflichtigen API-Schlüssel.
+
+
 ## Funktionen
 - Europaweite Suche nach Land, Ort, Region oder Platzname
 - Campingplätze und Wohnmobilstellplätze
@@ -168,3 +172,15 @@ Hinweis: Die App kann ohne kostenpflichtigen API-Schlüssel betrieben werden. Ö
 - Suchabfragen repariert (Overpass-Union-Syntax).
 - Kinderalter werden über einzelne Felder hinzugefügt; kein Komma nötig.
 - PC-/Tablet-Version bleibt responsiv erhalten.
+
+
+## Sichere Routenziel-Auswahl (v16)
+Der Routenplaner zeigt vor der Berechnung Ortsvorschläge für Start und Ziel. Mehrdeutige Eingaben müssen bestätigt werden. Häufige Tippfehler bei bekannten Reisezielen werden lokal korrigiert, ohne kostenpflichtige API. Die Route zeigt anschließend den tatsächlich aufgelösten Ortsnamen.
+
+
+### Liste ↔ Karte (v17)
+Ein Klick auf einen Treffer in der Ergebnisliste fokussiert den Platz direkt auf der Karte. Ohne ausgewählten Treffer zeigt die Karte automatisch alle aktuellen Ergebnisse. ‘Alle Treffer’ setzt die Auswahl zurück und passt den Kartenausschnitt erneut an.
+
+
+## Mehrdeutige Ortsnamen
+Wenn ein Ort oder eine Stadt mehrfach vorkommt, zeigt Campingfinder vor der Suche eine Auswahl mit Ort, Region/Bundesland und Land. Erst die ausgewählte Position wird für die Campingplatzsuche verwendet.

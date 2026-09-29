@@ -260,8 +260,8 @@
     <section id="routePlanner" class="route-card card">
       <div class="section-title-row"><div><span class="section-kicker">ROUTENPLANER</span><h2 data-i18n="routeTitle">Campingplätze entlang deiner Route</h2><p data-i18n="routeIntro">Start und Ziel eingeben – Campingfinder sucht Plätze im gewählten Korridor.</p></div></div>
       <div class="route-grid">
-        <label><span>Start</span><input id="routeStart" type="search" placeholder="z. B. Meinerzhagen" /></label>
-        <label><span>Ziel</span><input id="routeEnd" type="search" placeholder="z. B. Gardasee" /></label>
+        <label class="route-location-field"><span>Start</span><input id="routeStart" type="search" placeholder="z. B. Meinerzhagen" autocomplete="off" aria-autocomplete="list" aria-controls="routeStartSuggestions" /><div id="routeStartSuggestions" class="route-suggestions" role="listbox" hidden></div><small id="routeStartResolved" class="route-resolved"></small></label>
+        <label class="route-location-field"><span>Ziel</span><input id="routeEnd" type="search" placeholder="z. B. Gardasee" autocomplete="off" aria-autocomplete="list" aria-controls="routeEndSuggestions" /><div id="routeEndSuggestions" class="route-suggestions" role="listbox" hidden></div><small id="routeEndResolved" class="route-resolved"></small></label>
         <label><span>Max. Abstand</span><select id="routeCorridor"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="25000">25 km</option></select></label>
         <button id="routeSearchBtn" class="primary-btn">Route planen &amp; Plätze suchen</button>
       </div>
@@ -421,6 +421,7 @@
   <dialog id="compareDialog"><div class="dialog-shell compare-dialog-shell"><button id="closeCompareBtn" class="dialog-close" aria-label="Schließen">×</button><div id="compareContent"></div></div></dialog>
   <dialog id="legalDialog"><div class="dialog-shell legal-dialog-shell"><button id="closeLegalBtn" class="dialog-close" aria-label="Schließen">×</button><div id="legalContent"></div></div></dialog>
   <dialog id="shareDialog"><div class="dialog-shell share-dialog-shell"><button id="closeShareBtn" class="dialog-close" aria-label="Schließen">×</button><div class="detail-title"><span class="section-kicker">TEILEN</span><h2>Diese Suche teilen</h2><p>Land, Suchtext und aktive Filter werden direkt im Link gespeichert. Es ist kein Konto nötig.</p></div><div class="share-link-box"><input id="shareUrlInput" type="text" readonly /><button id="copyShareUrlBtn" class="primary-btn" type="button">Link kopieren</button></div><div class="qr-panel"><div id="shareQr" class="share-qr" aria-label="QR-Code für die Suche"></div><p id="shareQrNote" class="filter-note">QR-Code wird lokal im Browser erzeugt.</p></div></div></dialog>
+  <dialog id="placeChoiceDialog" class="place-choice-dialog"><div class="dialog-shell place-choice-shell"><button id="closePlaceChoiceBtn" class="dialog-close" aria-label="Auswahl schließen">×</button><div class="detail-title"><span class="section-kicker">ORT AUSWÄHLEN</span><h2 id="placeChoiceTitle">Welchen Ort meinst du?</h2><p id="placeChoiceText">Mehrere Orte passen zu deiner Eingabe. Wähle den richtigen Treffer.</p></div><div id="placeChoiceOptions" class="place-choice-options" role="listbox" aria-label="Passenden Ort auswählen"></div></div></dialog>
 
   <section id="printTravelSheet" class="print-travel-sheet" aria-hidden="true"></section>
 
