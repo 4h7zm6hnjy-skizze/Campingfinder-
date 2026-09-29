@@ -470,31 +470,137 @@ function overpassTypeFragments(areaExpr) {
   return `nwr["tourism"="camp_site"]${areaExpr};\nnwr["tourism"="caravan_site"]${areaExpr};`;
 }
 
-async function overpass(query) {
+async function overpass(query, options = {}) {
   const now=Date.now(), cached=state.overpassCache.get(query);
   if(cached && now-cached.savedAt < 10*60*1000) return cached.data;
+  const timeoutMs = Math.max(8000, Number(options.timeoutMs || 55000));
+  const maxEndpoints = Math.max(1, Math.min(OVERPASS_ENDPOINTS.length, Number(options.maxEndpoints || OVERPASS_ENDPOINTS.length)));
   let lastError;
-  for (const endpoint of OVERPASS_ENDPOINTS) {
+  for (const endpoint of OVERPASS_ENDPOINTS.slice(0, maxEndpoints)) {
+    let timeout;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 55000);
+      timeout = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
         body: new URLSearchParams({ data: query }),
         signal: controller.signal
       });
-      clearTimeout(timeout);
-      if (!response.ok) throw new Error(`Server ${response.status}`);
+      if (!response.ok) {
+        const err = new Error(`Server ${response.status}`);
+        err.status = response.status;
+        // A 400 is a malformed query and won't improve on a mirror.
+        if (response.status === 400) throw err;
+        lastError = err;
+        continue;
+      }
       const json = await response.json();
       state.overpassCache.set(query,{savedAt:Date.now(),data:json});
-      if(state.overpassCache.size>12){const first=state.overpassCache.keys().next().value;state.overpassCache.delete(first);}
+      if(state.overpassCache.size>18){const first=state.overpassCache.keys().next().value;state.overpassCache.delete(first);}
       return json;
     } catch (err) {
       lastError = err;
+      if (err?.status === 400 || /Server 400/.test(String(err?.message || ''))) break;
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
   }
   throw lastError || new Error('Overpass nicht erreichbar');
+}
+
+function clampEuropeBbox(bbox) {
+  const [south, west, north, east] = bbox.map(Number);
+  const s = Math.max(27, south), w = Math.max(-35, west), n = Math.min(72.5, north), e = Math.min(60, east);
+  if (![s,w,n,e].every(Number.isFinite) || s >= n || w >= e) return [south, west, north, east];
+  return [s,w,n,e];
+}
+
+function bboxFilter(bbox) {
+  return `(${bbox.map(v => Number(v).toFixed(5)).join(',')})`;
+}
+
+function makeBboxGrid(bbox) {
+  const [s,w,n,e] = bbox;
+  const midLat = (s+n)/2;
+  const latKm = Math.max(1, (n-s) * 111);
+  const lonKm = Math.max(1, (e-w) * 111 * Math.max(.25, Math.cos(midLat*Math.PI/180)));
+  const approxAreaKm2 = latKm * lonKm;
+  const targetCells = Math.max(1, Math.min(12, Math.ceil(approxAreaKm2 / 45000)));
+  const aspect = Math.max(.25, Math.min(4, lonKm/latKm));
+  let cols = Math.max(1, Math.round(Math.sqrt(targetCells * aspect)));
+  let rows = Math.max(1, Math.ceil(targetCells / cols));
+  while (rows * cols > 12) {
+    if (cols >= rows && cols > 1) cols--; else if (rows > 1) rows--; else break;
+  }
+  const cells=[];
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) {
+    const cs=s+(n-s)*r/rows, cn=s+(n-s)*(r+1)/rows;
+    const cw=w+(e-w)*c/cols, ce=w+(e-w)*(c+1)/cols;
+    cells.push([cs,cw,cn,ce]);
+  }
+  return cells;
+}
+
+function splitBbox(bbox) {
+  const [s,w,n,e]=bbox, midLat=(s+n)/2, midLon=(w+e)/2;
+  const latKm=(n-s)*111;
+  const lonKm=(e-w)*111*Math.max(.25,Math.cos(((s+n)/2)*Math.PI/180));
+  return lonKm >= latKm
+    ? [[s,w,n,midLon],[s,midLon,n,e]]
+    : [[s,w,midLat,e],[midLat,w,n,e]];
+}
+
+function retriableOverpassError(err) {
+  return err?.name === 'AbortError' || /Server (429|500|502|503|504)|Failed to fetch|NetworkError|Load failed/i.test(String(err?.message || err || ''));
+}
+
+async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
+  progress?.('attempt');
+  const areaDecl = `area["ISO3166-1"="${countryCode}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;`;
+  const filters = `(area.searchArea)${bboxFilter(bbox)}`;
+  const query = `[out:json][timeout:24];\n${areaDecl}\n(${overpassTypeFragments(filters)});\nout body center qt;`;
+  try {
+    const data = await overpass(query, { timeoutMs: 22000, maxEndpoints: 2 });
+    progress?.('success', data.elements?.length || 0);
+    return { elements: data.elements || [], failed: 0 };
+  } catch (err) {
+    if (depth < 2 && retriableOverpassError(err)) {
+      const halves = splitBbox(bbox);
+      const combined=[];
+      let failed=0;
+      for (const half of halves) {
+        const part = await queryCountryTile(countryCode, half, depth+1, progress);
+        combined.push(...part.elements);
+        failed += part.failed;
+        await new Promise(resolve => setTimeout(resolve, 120));
+      }
+      return { elements: combined, failed };
+    }
+    progress?.('failed');
+    return { elements: [], failed: 1, error: err };
+  }
+}
+
+async function searchCountryChunked(countryCode, countryName, rawBbox) {
+  const bbox = clampEuropeBbox(rawBbox);
+  const tiles = makeBboxGrid(bbox);
+  const rawById = new Map();
+  let attempted=0, successful=0, failed=0;
+  const progress = (kind, count=0) => {
+    if (kind === 'attempt') attempted++;
+    if (kind === 'success') successful++;
+    els.status.textContent = `${countryName}: Teilbereiche werden geladen · ${successful} erfolgreich · ${rawById.size} Plätze gefunden`;
+  };
+  for (let i=0;i<tiles.length;i++) {
+    els.status.textContent = `${countryName}: Teilgebiet ${i+1} von ${tiles.length} wird geladen · ${rawById.size} Plätze gefunden`;
+    const part = await queryCountryTile(countryCode, tiles[i], 0, progress);
+    for (const el of part.elements) rawById.set(`${el.type}/${el.id}`, el);
+    failed += part.failed;
+    // Keep the UI responsive and be gentler to the public Overpass instances.
+    if (i < tiles.length-1) await new Promise(resolve => setTimeout(resolve, 180));
+  }
+  return { elements:[...rawById.values()], failed, attempted, successful, bbox };
 }
 
 async function geocodePlace(query, countryCode) {
@@ -626,7 +732,6 @@ async function searchCountry() {
     const countryCode = els.country.value;
     const countryName = els.country.selectedOptions[0]?.textContent || countryCode;
     const placeText = els.place.value.trim();
-    let query;
     if (placeText) {
       els.status.textContent = `Ort „${placeText}“ wird gesucht …`;
       const geo = await geocodePlace(placeText, countryCode);
@@ -634,16 +739,34 @@ async function searchCountry() {
       // Expand very small geocoding boxes to at least about 25 km in each direction.
       const latPad = Math.max((n-s) * 0.35, 0.16);
       const lonPad = Math.max((e-w) * 0.35, 0.22);
-      const bbox = `(${(s-latPad).toFixed(5)},${(w-lonPad).toFixed(5)},${(n+latPad).toFixed(5)},${(e+lonPad).toFixed(5)})`;
-      query = `[out:json][timeout:45];\n(${overpassTypeFragments(bbox)});\nout body center;`;
+      const bounds = [s-latPad,w-lonPad,n+latPad,e+lonPad];
+      const bbox = bboxFilter(bounds);
+      const query = `[out:json][timeout:40];\n(${overpassTypeFragments(bbox)});\nout body center qt;`;
       state.currentSearchLabel = placeText;
+      try {
+        const data = await overpass(query, { timeoutMs: 36000, maxEndpoints: 3 });
+        ingestResults(data.elements || []);
+      } catch (err) {
+        if (!retriableOverpassError(err)) throw err;
+        // A large region (e.g. Bavaria/Tuscany) is automatically divided if a single request is too heavy.
+        const pseudoCountry = await searchCountryChunked(countryCode, placeText, bounds);
+        ingestResults(pseudoCountry.elements || []);
+        if (pseudoCountry.failed) els.status.textContent = `${placeText}: Ergebnisse geladen · ${pseudoCountry.failed} Teilbereich(e) konnten nicht geladen werden.`;
+      }
     } else {
-      const areaExpr = '(area.searchArea)';
-      query = `[out:json][timeout:50];\narea["ISO3166-1"="${countryCode}"]["boundary"="administrative"]["admin_level"="2"]->.searchArea;\n(${overpassTypeFragments(areaExpr)});\nout body center;`;
+      // Full-country searches are intentionally split into smaller geographic chunks.
+      // This avoids the 504 timeouts caused by one very large Overpass request.
+      els.status.textContent = `${countryName}: Landesgrenzen werden vorbereitet …`;
+      const geo = await geocodePlace(countryName, countryCode);
       state.currentSearchLabel = countryName;
+      const result = await searchCountryChunked(countryCode, countryName, geo.bbox);
+      if (!result.elements.length && result.failed) throw new Error('Die freien Kartendaten-Server konnten die Teilbereiche derzeit nicht laden. Bitte später erneut versuchen oder einen Ort eingeben.');
+      ingestResults(result.elements || []);
+      try { map.fitBounds([[result.bbox[0],result.bbox[1]],[result.bbox[2],result.bbox[3]]], { padding:[24,24], maxZoom:7 }); } catch {}
+      if (result.failed) {
+        els.status.textContent = `${countryName}: ${state.filteredPlaces.length} Treffer · ${result.failed} Teilbereich(e) vorübergehend nicht geladen.`;
+      }
     }
-    const data = await overpass(query);
-    ingestResults(data.elements || []);
   } catch (err) {
     showError(err?.name === 'AbortError' ? 'Zeitüberschreitung bei der freien Kartendaten-API.' : (err?.message || 'Unbekannter Fehler'));
   } finally { endLoading(); }

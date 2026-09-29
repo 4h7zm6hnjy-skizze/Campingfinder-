@@ -1,5 +1,14 @@
 # Campingfinder – Changelog
 
+## v15 – robuste Länder-Suche
+- Große Länder werden nicht mehr in einer einzigen Overpass-Abfrage geladen.
+- Länder werden automatisch in kleinere Kartenbereiche aufgeteilt und schrittweise zusammengeführt.
+- Teilbereiche mit 429/5xx/Timeout werden automatisch weiter geteilt.
+- Bereits geladene Treffer bleiben erhalten, wenn einzelne Teilbereiche vorübergehend ausfallen.
+- Abfragen werden innerhalb der Landesgrenze UND des jeweiligen Kartenabschnitts begrenzt.
+- Overpass-Ausgabe auf geografische Sortierung (`qt`) optimiert.
+- PWA-Cache auf v15 aktualisiert.
+
 ## Version 14 – Mobile & Suche
 - Overpass-Suchabfragen korrigiert (Union-Blöcke werden korrekt mit Semikolon abgeschlossen).
 - Suche nach Land, Ort, Kartenbereich, Nähe und Route repariert.

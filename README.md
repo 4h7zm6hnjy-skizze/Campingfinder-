@@ -1,5 +1,7 @@
 # Campingfinder
 
+**Aktuelle Version: v15** – robuste Länder-Suche mit automatischer Teilgebietsabfrage statt großer Einzelabfragen.
+
 **Slogan:** Ganz Europa gehört dir.
 
 Professionelle responsive Web-App zum Finden von Campingplätzen und Wohnmobilstellplätzen in Europa.
