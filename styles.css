@@ -210,7 +210,7 @@ input:focus, select:focus, textarea:focus { border-color:var(--green-2); box-sha
 .section-title-row p { margin:0; color:var(--muted); font-size:.86rem; }
 .route-card, .personal-card, .helpers-card { padding:20px; }
 .route-card { background:linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--blue-soft) 55%, var(--surface))); }
-.route-grid { display:grid; grid-template-columns:1.25fr 1.25fr .8fr .75fr auto; gap:12px; align-items:end; }
+.route-grid { display:grid; grid-template-columns:1.2fr 1.2fr .9fr .8fr .75fr auto; gap:12px; align-items:end; }
 .route-summary { margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--green-soft); border:1px solid color-mix(in srgb, var(--green) 25%, var(--line)); color:var(--green); font-weight:750; }
 
 .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
@@ -1263,3 +1263,13 @@ html {
   .result-eyebrow { align-items: flex-start; }
   .result-source { width: 100%; white-space: normal; }
 }
+
+
+/* v28 – Fahrzeugrecht im Routenplaner */
+.route-legal-notice{margin:10px 0 0;padding:11px 13px;border:1px solid #e4d3a1;border-radius:12px;background:#fff9e9;color:#6c571f;font-size:.76rem;line-height:1.5}
+.route-legal-notice strong{color:#54420e}
+.route-vehicle-summary{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 10px;margin-bottom:10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+.route-vehicle-summary strong{color:var(--green)}
+.route-vehicle-summary span{color:var(--muted);font-size:.73rem;text-align:right}
+html[data-theme="dark"] .route-legal-notice{background:#372f1d;border-color:#5c4d29;color:#ead994}
+@media(max-width:780px){.route-legal-notice{font-size:.72rem}.route-vehicle-summary{display:grid;grid-template-columns:1fr}.route-vehicle-summary span{text-align:left}}

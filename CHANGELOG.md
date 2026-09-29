@@ -1,3 +1,14 @@
+# Campingfinder – Changelog
+
+## v28 – Fahrzeugrecht & sichere Übernachtungswahl
+- Routenplaner hat eine eigene Fahrzeug-/Übernachtungsart-Auswahl.
+- Wohnwagen werden nie automatisch auf reine Wohnmobil-/Reisemobilstellplätze geroutet.
+- `tourism=caravan_site` wird für Wohnwagen nur genutzt, wenn `caravans=yes` ausdrücklich vorhanden ist.
+- Motorhome-only-Erkennung berücksichtigt `caravans=no`, OSM-Untertypen, Namen sowie deutsche Wohnmobil-Zusatzzeichen 1010-67 / 1048-17, soweit in OSM eingetragen.
+- Pkw/Auto-Modus sucht nur Campingplätze und zeigt einen deutlichen Rechtshinweis; eine allgemeine Übernachtungserlaubnis wird nicht behauptet.
+- Zelt-, Van- und Wohnmobilrouting beachten Fahrzeugausschlüsse konservativ.
+- Ergebnislisten und Details zeigen explizite Wohnwagenfreigaben bzw. erkannte reine Wohnmobilplätze.
+
 # v27
 
 - Routenplaner findet pro Idealstopp automatisch den nächstgelegenen Camping-/Wohnmobilplatz.
