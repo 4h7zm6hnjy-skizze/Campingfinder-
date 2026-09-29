@@ -1,6 +1,6 @@
-# Campingfinder v27
+# Campingfinder v29
 
-**Aktuelle Version: v27** – Routenplaner mit automatisch gewählten nächstgelegenen Übernachtungsplätzen und Neuberechnung der Route über diese Plätze.
+**Aktuelle Version: v29** – Routenplaner mit automatisch gewählten nächstgelegenen Übernachtungsplätzen und Neuberechnung der Route über diese Plätze.
 
 **Slogan:** Ganz Europa gehört dir.
 
@@ -202,7 +202,7 @@ Der Routenplaner kann 0 bis 8 Zwischenübernachtungen berücksichtigen. Eine ein
 - Zusätzliche ARIA-Beschriftungen für zentrale Eingabefelder.
 
 
-## v27 – Automatische Campingstopps im Routenplaner
+## v29 – Automatische Campingstopps im Routenplaner
 
 - Idealstopps werden weiterhin gleichmäßig über die Strecke verteilt.
 - Für jeden Idealstopp sucht Campingfinder automatisch den nächstgelegenen Camping- oder Wohnmobilplatz.
@@ -210,7 +210,3 @@ Der Routenplaner kann 0 bis 8 Zwischenübernachtungen berücksichtigen. Eine ein
 - Die Route wird danach über die tatsächlich gefundenen Plätze neu berechnet; Kilometer und Fahrzeit der Etappen beziehen sich auf diese angepasste Route.
 - Automatisch gewählte Stopps bleiben in der Ergebnisliste sichtbar, auch wenn alte Finder-Filter noch aktiv sind.
 - Derselbe Platz wird nicht für zwei verschiedene Übernachtungsstopps verwendet.
-
-
-## v28: Fahrzeugrecht im Routenplaner
-Campingfinder behandelt Fahrzeugarten konservativ. Reine Wohnmobil-/Reisemobilstellplätze werden für Wohnwagen nicht als automatische Übernachtungsstopps verwendet. Ein `tourism=caravan_site` wird für Wohnwagen nur dann automatisch berücksichtigt, wenn OpenStreetMap `caravans=yes` enthält. Bei Pkw/Auto wird keine allgemeine Übernachtungserlaubnis angenommen; vorgeschlagen werden nur Campingplätze und die örtlichen Regeln bzw. Betreiberbedingungen müssen geprüft werden. Beschilderung und lokale Rechtslage haben immer Vorrang vor den App-Daten.

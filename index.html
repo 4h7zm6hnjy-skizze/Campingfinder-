@@ -255,7 +255,7 @@
           <label class="check"><input id="bungalowFilter" type="checkbox" /> <span>Bungalows / Hütten</span></label>
         </div>
         <div class="filter-actions"><button id="resetFiltersBtn" class="ghost-btn" type="button">Filter zurücksetzen</button></div>
-        <p class="filter-note">* Sterne sind vorhandene Platz-Klassifizierungen, keine Campingfinder-Nutzerbewertungen. Altersgruppen, Küstennähe, Stil, Preis, Wellness, Sanitär, Freizeit, Versorgung, Lage, Stellplatzgröße und Mietunterkünfte können nur aus vorhandenen oder eindeutig ableitbaren Quelldaten berücksichtigt werden. „Privat“ zählt nur bei einem ausdrücklichen privaten Hinweis. Stellplatzgröße, Sonne/Schatten, Kinder-/Jugendclub, Brötchenservice und ähnliche Merkmale werden nur bei konkreten Angaben erkannt. Fehlende Angaben werden nicht als vorhanden angenommen.</p>
+        <p class="filter-note">* Sterne sind vorhandene Platz-Klassifizierungen, keine Campingfinder-Nutzerbewertungen. Altersgruppen, Küstennähe, Stil, Preis, Wellness, Sanitär, Freizeit, Versorgung, Lage, Stellplatzgröße und Mietunterkünfte können nur aus vorhandenen oder eindeutig ableitbaren Quelldaten berücksichtigt werden. „Privat“ zählt nur bei einem ausdrücklichen privaten Hinweis. Stellplatzgröße, Sonne/Schatten, Kinder-/Jugendclub, Brötchenservice und ähnliche Merkmale werden nur bei konkreten Angaben erkannt. Fehlende Angaben werden nicht als vorhanden angenommen. Bei Wohnwagen werden reine Reisemobil-/Wohnmobilstellplätze nur berücksichtigt, wenn die Quelldaten Wohnwagen ausdrücklich erlauben. Beschilderung und Platzordnung vor Ort haben immer Vorrang.</p>
       </details>
     </section>
 
@@ -264,13 +264,13 @@
       <div class="route-grid">
         <label class="route-location-field"><span>Start</span><input id="routeStart" type="search" placeholder="z. B. Meinerzhagen" autocomplete="off" aria-autocomplete="list" aria-controls="routeStartSuggestions" /><div id="routeStartSuggestions" class="route-suggestions" role="listbox" hidden></div><small id="routeStartResolved" class="route-resolved"></small></label>
         <label class="route-location-field"><span>Ziel</span><input id="routeEnd" type="search" placeholder="z. B. Gardasee" autocomplete="off" aria-autocomplete="list" aria-controls="routeEndSuggestions" /><div id="routeEndSuggestions" class="route-suggestions" role="listbox" hidden></div><small id="routeEndResolved" class="route-resolved"></small></label>
-        <label><span>Fahrzeug / Übernachtungsart</span><select id="routeVehicle"><option value="motorhome">Wohnmobil</option><option value="van">Van / Camper</option><option value="caravan">Wohnwagen</option><option value="car">Pkw / Auto</option><option value="tent">Zelt</option></select></label>
+        <label><span>Fahrzeug für Übernachtungsstopps</span><select id="routeVehicle"><option value="motorhome">Wohnmobil</option><option value="van">Van / Campervan</option><option value="caravan">Wohnwagen</option><option value="car">Auto</option><option value="tent">Zelt</option></select></label>
         <label><span>Zwischenübernachtungen</span><select id="routeOvernights"><option value="0">Keine – ganze Route</option><option value="1" selected>1 Übernachtung</option><option value="2">2 Übernachtungen</option><option value="3">3 Übernachtungen</option><option value="4">4 Übernachtungen</option><option value="5">5 Übernachtungen</option><option value="6">6 Übernachtungen</option><option value="7">7 Übernachtungen</option><option value="8">8 Übernachtungen</option></select></label>
         <label><span>Start-Suchradius am Stopp</span><select id="routeCorridor"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="25000">25 km</option></select></label>
         <button id="routeSearchBtn" class="primary-btn">Route &amp; Stopps planen</button>
       </div>
       <p class="route-planner-note">Bei 1 Übernachtung liegt der Zielpunkt exakt bei 50 % der Strecke. Bei mehreren Übernachtungen wird die Route in gleich lange Fahretappen geteilt.</p>
-      <div id="routeLegalNotice" class="route-legal-notice" role="note"></div>
+      <div id="routeLegalNotice" class="route-legal-notice" role="note" aria-live="polite"></div>
       <div class="route-quick-actions"><button id="routeUseLocationBtn" class="ghost-btn" type="button">Eigenen Standort als Start</button><button id="routeSwapBtn" class="ghost-btn" type="button">Start ↔ Ziel</button></div>
       <div id="routeSummary" class="route-summary" hidden></div>
     </section>
@@ -333,7 +333,7 @@
               <button id="addChildAgeBtn" class="ghost-btn add-child-btn" type="button">+ Kind hinzufügen</button>
             </div>
             <label><span>Hund</span><select id="familyDog"><option value="no">Nein</option><option value="yes">Ja</option></select></label>
-            <label><span>Camping-Art</span><select id="familyVehicle"><option value="all">Egal</option><option value="motorhome">Wohnmobil</option><option value="van">Van</option><option value="caravan">Wohnwagen</option><option value="tent">Zelt</option></select></label>
+            <label><span>Camping-Art</span><select id="familyVehicle"><option value="all">Egal</option><option value="motorhome">Wohnmobil</option><option value="van">Van</option><option value="caravan">Wohnwagen</option><option value="car">Auto</option><option value="tent">Zelt</option></select></label>
           </div>
           <div id="familyProfileSummary" class="profile-summary"></div>
           <div class="profile-actions"><button id="saveFamilyProfileBtn" class="secondary-btn" type="button">Profil speichern</button><button id="applyFamilyProfileBtn" class="primary-btn" type="button">Profil auf Suche anwenden</button></div>

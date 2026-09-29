@@ -1,13 +1,23 @@
+# Campingfinder v29
+
+- Overpass-Serverliste auf aktuell erreichbare freie Instanzen umgestellt.
+- Veraltete Hosts `overpass.kumi.systems` und `lz4.overpass-api.de` entfernt.
+- Neue Mirrors: private.coffee, FOSSGIS, VK Maps und OSM Japan.
+- Automatischer Server-Fallback mit kurzer Cooldown-Zeit bei Timeout/429/5xx.
+- Safari-Fallback von POST auf GET für kurze Overpass-Abfragen.
+- Länder werden in kleinere Teilbereiche zerlegt; fehlgeschlagene Bereiche werden nochmals geteilt.
+- Küstenabfragen brechen schneller auf einen anderen Server/Fallback um.
+
 # Campingfinder – Changelog
 
-## v28 – Fahrzeugrecht & sichere Übernachtungswahl
-- Routenplaner hat eine eigene Fahrzeug-/Übernachtungsart-Auswahl.
-- Wohnwagen werden nie automatisch auf reine Wohnmobil-/Reisemobilstellplätze geroutet.
-- `tourism=caravan_site` wird für Wohnwagen nur genutzt, wenn `caravans=yes` ausdrücklich vorhanden ist.
-- Motorhome-only-Erkennung berücksichtigt `caravans=no`, OSM-Untertypen, Namen sowie deutsche Wohnmobil-Zusatzzeichen 1010-67 / 1048-17, soweit in OSM eingetragen.
-- Pkw/Auto-Modus sucht nur Campingplätze und zeigt einen deutlichen Rechtshinweis; eine allgemeine Übernachtungserlaubnis wird nicht behauptet.
-- Zelt-, Van- und Wohnmobilrouting beachten Fahrzeugausschlüsse konservativ.
-- Ergebnislisten und Details zeigen explizite Wohnwagenfreigaben bzw. erkannte reine Wohnmobilplätze.
+## v28
+- Fahrzeugart im Routenplaner ergänzt: Wohnmobil, Van, Wohnwagen, Auto oder Zelt.
+- Wohnwagen: reine Reisemobil-/Wohnmobilstellplätze werden ausgeschlossen, außer `caravans=yes` erlaubt Wohnwagen ausdrücklich.
+- Auto: keine gewöhnlichen Parkplätze oder Reisemobilstellplätze als reguläre Übernachtungsstopps; Campingfinder nutzt nur Campingplätze und weist auf Betreiber-/Landesregeln hin.
+- Zelt: Reisemobilstellplätze nur bei ausdrücklichem `tents=yes`.
+- Wohnmobil/Van: Camping- und Reisemobilstellplätze, sofern nicht ausdrücklich ausgeschlossen.
+- Dynamischer Rechtshinweis im Routenplaner; Beschilderung, örtliche Regeln und Platzordnung haben Vorrang.
+- Normale Wohnwagen-Suche nutzt dieselbe konservative Fahrzeuglogik.
 
 # v27
 

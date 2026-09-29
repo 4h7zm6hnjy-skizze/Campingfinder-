@@ -1,9 +1,12 @@
-/* Campingfinder – client-side Europe camping search */
+/* Campingfinder v29 – client-side Europe camping search */
 
+// Current public, free Overpass mirrors. Keep the retired kumi/lz4 hosts out:
+// kumi.systems moved to private.coffee and the old lz4 host can hang before timing out.
 const OVERPASS_ENDPOINTS = [
+  'https://overpass.private.coffee/api/interpreter',
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://lz4.overpass-api.de/api/interpreter'
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.osm.jp/api/interpreter'
 ];
 const WEATHER_ENDPOINT = 'https://api.open-meteo.com/v1/forecast';
 const NOMINATIM_ENDPOINT = 'https://nominatim.openstreetmap.org/search';
@@ -69,7 +72,9 @@ const state = {
   selectedPlaceKey: null,
   countryBoundaries: new Map(),
   routeAutoStopKeys: new Set(),
-  routeAutoStopPlaces: []
+  routeAutoStopPlaces: [],
+  preferredOverpassEndpoint: '',
+  overpassEndpointCooldown: new Map()
 };
 if (!state.trip || !Array.isArray(state.trip.stages)) state.trip = { name: 'Meine Reise', startDate: '', stages: [] };
 if (state.trip.startDate == null) state.trip.startDate = '';
@@ -99,7 +104,7 @@ const els = {
   resetFilters: $('resetFiltersBtn'),
   count: $('resultCount'), websiteCount: $('websiteCount'), weatherCount: $('weatherCount'), favoriteCount: $('favoriteCount'),
   results: $('results'), status: $('statusText'), favoritesOnly: $('favoritesOnlyBtn'),
-  routeStart: $('routeStart'), routeEnd: $('routeEnd'), routeStartSuggestions: $('routeStartSuggestions'), routeEndSuggestions: $('routeEndSuggestions'), routeStartResolved: $('routeStartResolved'), routeEndResolved: $('routeEndResolved'), routeVehicle: $('routeVehicle'), routeOvernights: $('routeOvernights'), routeCorridor: $('routeCorridor'), routeBtn: $('routeSearchBtn'), routeSummary: $('routeSummary'), routeLegalNotice: $('routeLegalNotice'),
+  routeStart: $('routeStart'), routeEnd: $('routeEnd'), routeStartSuggestions: $('routeStartSuggestions'), routeEndSuggestions: $('routeEndSuggestions'), routeStartResolved: $('routeStartResolved'), routeEndResolved: $('routeEndResolved'), routeOvernights: $('routeOvernights'), routeCorridor: $('routeCorridor'), routeVehicle: $('routeVehicle'), routeLegalNotice: $('routeLegalNotice'), routeBtn: $('routeSearchBtn'), routeSummary: $('routeSummary'),
   mapLayer: $('mapLayerSelect'), language: $('languageSelect'),
   favoriteLists: $('favoriteLists'), visitedPlaces: $('visitedPlaces'), newListName: $('newListName'), addList: $('addListBtn'), refreshMyPlaces: $('refreshMyPlacesBtn'),
   journalForm: $('journalForm'), journalEntries: $('journalEntries'),
@@ -190,75 +195,8 @@ function addressOf(tags) {
 function displayName(tags, type) {
   return firstTag(tags, 'name', 'official_name', 'brand', 'operator') || (type === 'caravan_site' ? 'Wohnmobilstellplatz' : 'Campingplatz ohne Namen');
 }
-function typeLabel(type, tags = {}, amenities = {}) {
-  if (type !== 'caravan_site') return 'Campingplatz';
-  if (amenities.caravans === 'yes') return 'Caravan-/Wohnmobilstellplatz';
-  return 'Wohnmobilstellplatz';
-}
-function trafficSignText(tags = {}) {
-  return [tags.traffic_sign, tags['traffic_sign:forward'], tags['traffic_sign:backward'], tags['traffic_sign:direction']]
-    .filter(Boolean).join(' ').toLowerCase();
-}
-function motorhomeOnlyByTags(tags = {}, tourism = '') {
-  if (yesish(tags.caravans)) return false;
-  if (noish(tags.caravans)) return true;
-  const sign = trafficSignText(tags);
-  if (/1010-67|1048-17/.test(sign)) return true;
-  const subtype = [tags.caravan_site, tags['caravan_site:type'], tags['site:type'], tags.type].filter(Boolean).join(' ').toLowerCase();
-  if (/motorhome[_ -]?stopover|motorhome[_ -]?only|reisemobil|wohnmobil/.test(subtype)) return true;
-  if (tourism === 'caravan_site') {
-    const text = [tags.name, tags.official_name, tags.description, tags.note].filter(Boolean).join(' ').toLowerCase();
-    if (/wohnmobilstellplatz|reisemobilstellplatz|reisemobilhafen|motorhome stopover|motorhome parking|aire de camping-car|area sosta camper/.test(text)) return true;
-  }
-  return false;
-}
-function vehicleEligibility(place, vehicle) {
-  const tags = place?.tags || {};
-  const tourism = place?.tourism || tags.tourism || '';
-  const a = place?.amenities || amenityStates(tags);
-  const motorhomeOnly = motorhomeOnlyByTags(tags, tourism);
-  if (vehicle === 'caravan') {
-    if (a.caravans === 'no' || motorhomeOnly) return { allowed:false, certainty:'explicit', reason:'Nur Wohnmobil/Reisemobil oder Wohnwagen ausgeschlossen' };
-    if (tourism === 'caravan_site') {
-      return a.caravans === 'yes'
-        ? { allowed:true, certainty:'explicit', reason:'Wohnwagen ausdrücklich erlaubt' }
-        : { allowed:false, certainty:'unknown', reason:'Wohnwagen-Zulassung nicht ausdrücklich bestätigt' };
-    }
-    return { allowed:true, certainty:a.caravans === 'yes' ? 'explicit' : 'probable', reason:a.caravans === 'yes' ? 'Wohnwagen ausdrücklich erlaubt' : 'Campingplatz; Betreiberregeln prüfen' };
-  }
-  if (vehicle === 'motorhome' || vehicle === 'van') {
-    if (a.motorhome === 'no') return { allowed:false, certainty:'explicit', reason:'Wohnmobile ausgeschlossen' };
-    return { allowed:true, certainty:a.motorhome === 'yes' || tourism === 'caravan_site' ? 'explicit' : 'probable', reason:'Für Wohnmobil/Van geeignet; Beschilderung prüfen' };
-  }
-  if (vehicle === 'tent') {
-    if (a.tents === 'no') return { allowed:false, certainty:'explicit', reason:'Zelte ausgeschlossen' };
-    if (tourism === 'caravan_site' && a.tents !== 'yes') return { allowed:false, certainty:'unknown', reason:'Zelte auf diesem Stellplatz nicht bestätigt' };
-    return { allowed:true, certainty:a.tents === 'yes' ? 'explicit' : 'probable', reason:'Campingplatz; Zeltregeln des Betreibers prüfen' };
-  }
-  if (vehicle === 'car') {
-    if (tourism !== 'camp_site') return { allowed:false, certainty:'legal', reason:'Pkw-Übernachtung wird nicht auf Wohnmobilstellplätzen vorgeschlagen' };
-    if (noish(tags.motor_vehicle) || noish(tags.access)) return { allowed:false, certainty:'explicit', reason:'Kraftfahrzeuge/Zufahrt ausgeschlossen' };
-    return { allowed:true, certainty:'unknown', reason:'Campingplatz; Übernachten im Pkw muss vor Ort/bei Betreiber zulässig sein' };
-  }
-  return { allowed:true, certainty:'unknown', reason:'Örtliche Regeln und Beschilderung prüfen' };
-}
-function routeVehicleMode() {
-  return els.routeVehicle?.value || (state.familyProfile?.vehicle && state.familyProfile.vehicle !== 'all' ? state.familyProfile.vehicle : 'motorhome');
-}
-function routeVehicleLabel(vehicle = routeVehicleMode()) {
-  return ({motorhome:'Wohnmobil',van:'Van / Camper',caravan:'Wohnwagen',car:'Pkw / Auto',tent:'Zelt'}[vehicle] || 'Fahrzeug');
-}
-function updateRouteLegalNotice() {
-  if (!els.routeLegalNotice) return;
-  const vehicle=routeVehicleMode();
-  const messages={
-    caravan:'Wohnwagen: Reine Wohnmobil-/Reisemobilstellplätze werden ausgeschlossen. Stellplätze mit tourism=caravan_site werden nur berücksichtigt, wenn Wohnwagen ausdrücklich als erlaubt eingetragen sind. Beschilderung und Betreiberregeln vor Ort haben Vorrang.',
-    car:'Pkw/Auto: Übernachten im Fahrzeug ist in Europa nicht pauschal erlaubt. Campingfinder schlägt im Auto-Modus nur Campingplätze vor; ob Schlafen im Pkw dort erlaubt ist, muss beim Betreiber bzw. anhand der örtlichen Regeln geprüft werden. In Deutschland ist eine kurzfristige Übernachtung auf zulässigem Parkraum zur Wiederherstellung der Fahrtüchtigkeit eine Sonderkonstellation – kein allgemeines Campingrecht.',
-    tent:'Zelt: Es werden Campingplätze bzw. ausdrücklich für Zelte freigegebene Stellplätze berücksichtigt. Wildcamping-Regeln unterscheiden sich je nach Land und Region.',
-    motorhome:'Wohnmobil: Beschilderung, Höchstparkdauer und örtliche Stellplatzordnung beachten. Ein Stellplatz kann auf bestimmte Fahrzeugarten beschränkt sein.',
-    van:'Van/Camper: Beschilderung, Höchstparkdauer und örtliche Stellplatzordnung beachten. Ein Stellplatz kann auf bestimmte Fahrzeugarten beschränkt sein.'
-  };
-  els.routeLegalNotice.innerHTML=`<strong>Recht & Fahrzeug:</strong> ${escapeHtml(messages[vehicle] || messages.motorhome)}`;
+function typeLabel(type) {
+  return type === 'caravan_site' ? 'Wohnmobilstellplatz' : 'Campingplatz';
 }
 function adultOnly(tags) {
   const minAge = parseInt(firstTag(tags, 'min_age', 'minimum_age'), 10);
@@ -535,7 +473,7 @@ function normalizePlace(el) {
     lat, lon, tags,
     name: displayName(tags, tourism),
     tourism,
-    typeLabel: typeLabel(tourism, tags, amenities),
+    typeLabel: typeLabel(tourism),
     website: websiteOf(tags),
     address: addressOf(tags),
     stars,
@@ -566,40 +504,62 @@ function overpassTypeFragments(areaExpr) {
 async function overpass(query, options = {}) {
   const now=Date.now(), cached=state.overpassCache.get(query);
   if(cached && now-cached.savedAt < 10*60*1000) return cached.data;
-  const timeoutMs = Math.max(8000, Number(options.timeoutMs || 55000));
+
+  const timeoutMs = Math.max(6000, Number(options.timeoutMs || 32000));
   const maxEndpoints = Math.max(1, Math.min(OVERPASS_ENDPOINTS.length, Number(options.maxEndpoints || OVERPASS_ENDPOINTS.length)));
+  const available = OVERPASS_ENDPOINTS.filter(ep => (state.overpassEndpointCooldown.get(ep) || 0) <= now);
+  const cooling = OVERPASS_ENDPOINTS.filter(ep => (state.overpassEndpointCooldown.get(ep) || 0) > now);
+  let endpoints = [...available, ...cooling];
+  if (state.preferredOverpassEndpoint && endpoints.includes(state.preferredOverpassEndpoint)) {
+    endpoints = [state.preferredOverpassEndpoint, ...endpoints.filter(ep => ep !== state.preferredOverpassEndpoint)];
+  }
+  endpoints = endpoints.slice(0, maxEndpoints);
+
   let lastError;
-  for (const endpoint of OVERPASS_ENDPOINTS.slice(0, maxEndpoints)) {
+  for (const endpoint of endpoints) {
     let timeout;
     try {
       const controller = new AbortController();
       timeout = setTimeout(() => controller.abort(), timeoutMs);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
-        body: new URLSearchParams({ data: query }),
-        signal: controller.signal
-      });
+      let response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
+          body: new URLSearchParams({ data: query }),
+          signal: controller.signal
+        });
+      } catch (postError) {
+        // Some mirrors/proxies behave better with GET in Safari. Only use GET for short queries.
+        if (postError?.name !== 'AbortError' && query.length < 6000) {
+          const url = `${endpoint}?data=${encodeURIComponent(query)}`;
+          response = await fetch(url, { method:'GET', signal:controller.signal });
+        } else throw postError;
+      }
       if (!response.ok) {
         const err = new Error(`Server ${response.status}`);
         err.status = response.status;
-        // A 400 is a malformed query and won't improve on a mirror.
         if (response.status === 400) throw err;
         lastError = err;
+        const cooldown = response.status === 429 ? 120000 : 45000;
+        state.overpassEndpointCooldown.set(endpoint, Date.now()+cooldown);
         continue;
       }
       const json = await response.json();
+      state.preferredOverpassEndpoint = endpoint;
+      state.overpassEndpointCooldown.delete(endpoint);
       state.overpassCache.set(query,{savedAt:Date.now(),data:json});
-      if(state.overpassCache.size>18){const first=state.overpassCache.keys().next().value;state.overpassCache.delete(first);}
+      if(state.overpassCache.size>24){const first=state.overpassCache.keys().next().value;state.overpassCache.delete(first);}
       return json;
     } catch (err) {
       lastError = err;
       if (err?.status === 400 || /Server 400/.test(String(err?.message || ''))) break;
+      state.overpassEndpointCooldown.set(endpoint, Date.now()+45000);
     } finally {
       if (timeout) clearTimeout(timeout);
     }
   }
-  throw lastError || new Error('Overpass nicht erreichbar');
+  throw lastError || new Error('Alle freien Overpass-Datenserver sind derzeit nicht erreichbar.');
 }
 
 function clampEuropeBbox(bbox) {
@@ -619,11 +579,11 @@ function makeBboxGrid(bbox) {
   const latKm = Math.max(1, (n-s) * 111);
   const lonKm = Math.max(1, (e-w) * 111 * Math.max(.25, Math.cos(midLat*Math.PI/180)));
   const approxAreaKm2 = latKm * lonKm;
-  const targetCells = Math.max(1, Math.min(8, Math.ceil(approxAreaKm2 / 70000)));
+  const targetCells = Math.max(1, Math.min(20, Math.ceil(approxAreaKm2 / 30000)));
   const aspect = Math.max(.25, Math.min(4, lonKm/latKm));
   let cols = Math.max(1, Math.round(Math.sqrt(targetCells * aspect)));
   let rows = Math.max(1, Math.ceil(targetCells / cols));
-  while (rows * cols > 12) {
+  while (rows * cols > 20) {
     if (cols >= rows && cols > 1) cols--; else if (rows > 1) rows--; else break;
   }
   const cells=[];
@@ -727,13 +687,13 @@ async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
   const bboxExpr = bboxFilter(bbox);
   // Important: country membership is filtered locally with the Nominatim country polygon.
   // Overpass only receives the small bbox. This avoids the unreliable area+bbox combination.
-  const query = `[out:json][timeout:18];\n(${overpassTypeFragments(bboxExpr)});\nout body center qt;`;
+  const query = `[out:json][timeout:13];\n(${overpassTypeFragments(bboxExpr)});\nout body center qt;`;
   try {
-    const data = await overpass(query, { timeoutMs: 16000, maxEndpoints: 3 });
+    const data = await overpass(query, { timeoutMs: 12000, maxEndpoints: 4 });
     progress?.('success', data.elements?.length || 0);
     return { elements: data.elements || [], failed: 0 };
   } catch (err) {
-    if (depth < 1 && retriableOverpassError(err)) {
+    if (depth < 2 && retriableOverpassError(err)) {
       const halves = splitBbox(bbox);
       const combined=[];
       let failed=0;
@@ -752,9 +712,9 @@ async function queryCountryTile(countryCode, bbox, depth = 0, progress = null) {
 
 async function queryCoastTile(bbox, depth = 0) {
   const expanded = expandBboxKm(bbox, 38);
-  const query = `[out:json][timeout:16];\nway["natural"="coastline"]${bboxFilter(expanded)};\nout geom qt;`;
+  const query = `[out:json][timeout:11];\nway["natural"="coastline"]${bboxFilter(expanded)};\nout geom qt;`;
   try {
-    const data = await overpass(query, { timeoutMs: 14000, maxEndpoints: 2 });
+    const data = await overpass(query, { timeoutMs: 10000, maxEndpoints: 4 });
     return data.elements || [];
   } catch (err) {
     if (depth < 1 && retriableOverpassError(err)) {
@@ -762,7 +722,7 @@ async function queryCoastTile(bbox, depth = 0) {
       for (const half of halves) {
         try {
           const q=`[out:json][timeout:12];\nway["natural"="coastline"]${bboxFilter(half)};\nout geom qt;`;
-          const d=await overpass(q,{timeoutMs:11000,maxEndpoints:2});
+          const d=await overpass(q,{timeoutMs:9000,maxEndpoints:4});
           all.push(...(d.elements||[]));
         } catch {}
       }
@@ -1175,22 +1135,82 @@ function formatRouteDuration(seconds) {
   const h=Math.floor(mins/60), m=mins%60;
   return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
 }
-function routeStopSearchParts(stopPoints, corridor, vehicle = routeVehicleMode()) {
+function routeVehicleValue() {
+  const selected=els.routeVehicle?.value;
+  if (['motorhome','van','caravan','car','tent'].includes(selected)) return selected;
+  const profile=state.familyProfile?.vehicle;
+  return ['motorhome','van','caravan','car','tent'].includes(profile) ? profile : 'motorhome';
+}
+function vehicleEligibility(place, vehicle=routeVehicleValue()) {
+  const a=place?.amenities || {};
+  const tourism=place?.tourism || '';
+  const tags=place?.tags || {};
+  if (vehicle === 'caravan') {
+    if (a.caravans === 'no') return { allowed:false, confirmed:true, reason:'Wohnwagen ausdrücklich nicht erlaubt' };
+    if (tourism === 'caravan_site') return a.caravans === 'yes'
+      ? { allowed:true, confirmed:true, reason:'Wohnwagen auf diesem Stellplatz ausdrücklich erlaubt' }
+      : { allowed:false, confirmed:false, reason:'Reiner Reisemobil-/Wohnmobilstellplatz ohne ausdrückliche Wohnwagenfreigabe' };
+    if (tourism === 'camp_site') return { allowed:true, confirmed:a.caravans === 'yes', reason:a.caravans === 'yes' ? 'Wohnwagen ausdrücklich erlaubt' : 'Campingplatz – Wohnwagenregeln beim Betreiber prüfen' };
+    return { allowed:false, confirmed:false, reason:'Platzart nicht als Wohnwagen-Übernachtungsplatz erkannt' };
+  }
+  if (vehicle === 'motorhome' || vehicle === 'van') {
+    if (a.motorhome === 'no') return { allowed:false, confirmed:true, reason:'Wohnmobile ausdrücklich nicht erlaubt' };
+    if (tourism === 'caravan_site') return { allowed:true, confirmed:true, reason:'Ausgewiesener Reisemobil-/Wohnmobilstellplatz' };
+    if (tourism === 'camp_site') return { allowed:true, confirmed:a.motorhome === 'yes', reason:a.motorhome === 'yes' ? 'Wohnmobil ausdrücklich erlaubt' : 'Campingplatz – Fahrzeugregeln beim Betreiber prüfen' };
+    return { allowed:false, confirmed:false, reason:'Platzart nicht passend' };
+  }
+  if (vehicle === 'tent') {
+    if (a.tents === 'no') return { allowed:false, confirmed:true, reason:'Zelte ausdrücklich nicht erlaubt' };
+    if (tourism === 'caravan_site') return a.tents === 'yes'
+      ? { allowed:true, confirmed:true, reason:'Zelte ausdrücklich erlaubt' }
+      : { allowed:false, confirmed:false, reason:'Reiner Stellplatz ohne Zeltfreigabe' };
+    if (tourism === 'camp_site') return { allowed:true, confirmed:a.tents === 'yes', reason:a.tents === 'yes' ? 'Zelte ausdrücklich erlaubt' : 'Campingplatz – Zeltregeln prüfen' };
+    return { allowed:false, confirmed:false, reason:'Platzart nicht passend' };
+  }
+  if (vehicle === 'car') {
+    if (tourism !== 'camp_site') return { allowed:false, confirmed:false, reason:'Campingfinder nutzt für Auto-Übernachtungen keine normalen Park- oder Wohnmobilstellplätze' };
+    if (String(tags.motor_vehicle || '').toLowerCase() === 'no') return { allowed:false, confirmed:true, reason:'Kraftfahrzeuge ausdrücklich nicht erlaubt' };
+    return { allowed:true, confirmed:false, reason:'Campingplatz – Übernachten im Auto vorher beim Betreiber und nach örtlichem Recht prüfen' };
+  }
+  return { allowed:true, confirmed:false, reason:'Fahrzeugregeln prüfen' };
+}
+function routeVehicleQueryParts(around, vehicle=routeVehicleValue()) {
+  if (vehicle === 'caravan') return [
+    `nwr["tourism"="camp_site"]["caravans"!="no"]${around};`,
+    `nwr["tourism"="caravan_site"]["caravans"="yes"]${around};`
+  ];
+  if (vehicle === 'motorhome' || vehicle === 'van') return [
+    `nwr["tourism"="camp_site"]["motorhome"!="no"]${around};`,
+    `nwr["tourism"="caravan_site"]["motorhome"!="no"]${around};`
+  ];
+  if (vehicle === 'tent') return [
+    `nwr["tourism"="camp_site"]["tents"!="no"]${around};`,
+    `nwr["tourism"="caravan_site"]["tents"="yes"]${around};`
+  ];
+  if (vehicle === 'car') return [`nwr["tourism"="camp_site"]["motor_vehicle"!="no"]${around};`];
+  return [`nwr["tourism"="camp_site"]${around};`,`nwr["tourism"="caravan_site"]${around};`];
+}
+function routeVehicleLabel(vehicle=routeVehicleValue()) {
+  return {motorhome:'Wohnmobil',van:'Van / Campervan',caravan:'Wohnwagen',car:'Auto',tent:'Zelt'}[vehicle] || 'Fahrzeug';
+}
+function routeLegalText(vehicle=routeVehicleValue()) {
+  if (vehicle === 'caravan') return '<strong>Wohnwagen:</strong> Reine Reisemobil-/Wohnmobilstellplätze werden ausgeschlossen. Sie werden nur verwendet, wenn die Platzdaten Wohnwagen ausdrücklich mit <code>caravans=yes</code> erlauben. Campingplätze mit <code>caravans=no</code> werden ebenfalls ausgeschlossen. Beschilderung und Platzordnung vor Ort haben Vorrang.';
+  if (vehicle === 'car') return '<strong>Auto:</strong> Campingfinder plant nur Campingplätze als Übernachtungsstopp und keine gewöhnlichen Parkplätze. Ob Schlafen im Auto erlaubt ist, unterscheidet sich je Land und kann zusätzlich durch lokale Regeln oder den Betreiber eingeschränkt sein. In Deutschland ist eine kurzfristige Übernachtung auf einer zulässigen Parkfläche nur zur Wiederherstellung der Fahrtüchtigkeit gedacht und ohne campingähnliches Verhalten.';
+  if (vehicle === 'motorhome' || vehicle === 'van') return '<strong>Wohnmobil / Van:</strong> Camping- und ausgewiesene Reisemobilstellplätze werden berücksichtigt, sofern die Daten das Fahrzeug nicht ausschließen. Beschilderung, maximale Aufenthaltsdauer und Platzordnung prüfen.';
+  if (vehicle === 'tent') return '<strong>Zelt:</strong> Campingplätze werden genutzt. Reine Reisemobilstellplätze werden nur berücksichtigt, wenn Zelte ausdrücklich erlaubt sind.';
+  return 'Beschilderung, örtliche Regeln und die Platzordnung haben Vorrang.';
+}
+function updateRouteLegalNotice() {
+  if (!els.routeLegalNotice) return;
+  els.routeLegalNotice.innerHTML = `${routeLegalText()}<br><small>Die Rechtslage zum Übernachten außerhalb ausgewiesener Plätze ist in Europa nicht einheitlich. Campingfinder ersetzt keine Rechtsberatung und wählt für Auto und Wohnwagen bewusst konservativ.</small>`;
+}
+
+function routeStopSearchParts(stopPoints, corridor) {
   const parts=[];
+  const vehicle=routeVehicleValue();
   stopPoints.forEach(stop=>{
     const around=`(around:${corridor},${Number(stop.lat).toFixed(6)},${Number(stop.lon).toFixed(6)})`;
-    if (vehicle === 'caravan') {
-      parts.push(`nwr["tourism"="camp_site"]${around};`);
-      parts.push(`nwr["tourism"="caravan_site"]["caravans"="yes"]${around};`);
-    } else if (vehicle === 'tent') {
-      parts.push(`nwr["tourism"="camp_site"]${around};`);
-      parts.push(`nwr["tourism"="caravan_site"]["tents"="yes"]${around};`);
-    } else if (vehicle === 'car') {
-      parts.push(`nwr["tourism"="camp_site"]${around};`);
-    } else {
-      parts.push(`nwr["tourism"="camp_site"]${around};`);
-      parts.push(`nwr["tourism"="caravan_site"]${around};`);
-    }
+    parts.push(...routeVehicleQueryParts(around, vehicle));
   });
   return parts.join('\n');
 }
@@ -1207,18 +1227,19 @@ function routeStopRadiusPlan(corridor) {
   ])].sort((a,b)=>a-b);
 }
 
-async function findNearestRouteStopPlace(stop, stopIndex, corridor, usedKeys = new Set(), vehicle = routeVehicleMode()) {
+async function findNearestRouteStopPlace(stop, stopIndex, corridor, usedKeys = new Set()) {
   const radii=routeStopRadiusPlan(corridor);
   let lastError=null;
   for (const radius of radii) {
     els.status.textContent=`Übernachtung ${stopIndex+1}: nächster Platz wird bis ${Math.round(radius/1000)} km gesucht …`;
-    const query=`[out:json][timeout:24];\n(${routeStopSearchParts([stop],radius,vehicle)});\nout body center qt;`;
+    const query=`[out:json][timeout:24];\n(${routeStopSearchParts([stop],radius)});\nout body center qt;`;
     try {
       const data=await overpass(query,{timeoutMs:22000,maxEndpoints:3});
-      const candidates=(data.elements || []).map(el=>({raw:el,place:normalizePlace(el)})).filter(x=>x.place && vehicleEligibility(x.place,vehicle).allowed);
+      const vehicle=routeVehicleValue();
+      const candidates=(data.elements || []).map(el=>({raw:el,place:normalizePlace(el)})).filter(x=>x.place).map(x=>({...x,eligibility:vehicleEligibility(x.place,vehicle)})).filter(x=>x.eligibility.allowed);
       if (!candidates.length) continue;
-      candidates.forEach(x=>{x.distanceKm=haversineKm(stop.lat,stop.lon,x.place.lat,x.place.lon);});
-      candidates.sort((a,b)=>a.distanceKm-b.distanceKm || a.place.name.localeCompare(b.place.name,state.language));
+      candidates.forEach(x=>{x.distanceKm=haversineKm(stop.lat,stop.lon,x.place.lat,x.place.lon);x.vehicleRank=x.eligibility.confirmed?0:1;});
+      candidates.sort((a,b)=>a.vehicleRank-b.vehicleRank || a.distanceKm-b.distanceKm || a.place.name.localeCompare(b.place.name,state.language));
       const best=candidates.find(x=>!usedKeys.has(x.place.key));
       if (!best) continue;
       return {
@@ -1233,6 +1254,7 @@ async function findNearestRouteStopPlace(stop, stopIndex, corridor, usedKeys = n
         name:best.place.name,
         distanceFromIdealKm:best.distanceKm,
         searchRadius:radius,
+        vehicleEligibility:best.eligibility,
         stopIndex:stopIndex+1
       };
     } catch (err) {
@@ -1242,13 +1264,13 @@ async function findNearestRouteStopPlace(stop, stopIndex, corridor, usedKeys = n
   return { ...stop, stopIndex:stopIndex+1, error:lastError || new Error('Kein Campingplatz gefunden.') };
 }
 
-async function resolveRouteStopPlaces(stopPoints, corridor, vehicle = routeVehicleMode()) {
+async function resolveRouteStopPlaces(stopPoints, corridor) {
   const resolved=[];
   const rawById=new Map();
   const usedKeys=new Set();
   let failed=0;
   for (let i=0;i<stopPoints.length;i++) {
-    const found=await findNearestRouteStopPlace(stopPoints[i],i,corridor,usedKeys,vehicle);
+    const found=await findNearestRouteStopPlace(stopPoints[i],i,corridor,usedKeys);
     if (found.place && found.raw) {
       resolved.push(found);
       usedKeys.add(found.placeKey);
@@ -1318,9 +1340,10 @@ function renderRoutePlanMap(route, routeCoords, start, end, stopPoints, legs) {
 function renderRouteSummary(start,end,route,legs,overnights,corridor) {
   if(!els.routeSummary) return;
   const totalKm=Math.round(Number(route.distance||0)/1000);
+  const vehicleLabel=routeVehicleLabel();
   const stopText=overnights===0
-    ? `Keine Zwischenübernachtung · Plätze im Korridor der gesamten Route`
-    : `${overnights} Zwischenübernachtung${overnights===1?'':'en'} · ${overnights+1} Fahretappen · nächster Campingplatz je Idealstopp wird automatisch gewählt und die Route dorthin angepasst`;
+    ? `Keine Zwischenübernachtung · passende Plätze für ${vehicleLabel} im Korridor der gesamten Route`
+    : `${overnights} Zwischenübernachtung${overnights===1?'':'en'} · ${overnights+1} Fahretappen · nächster für ${vehicleLabel} geeigneter Platz je Idealstopp wird automatisch gewählt und die Route dorthin angepasst`;
   let cumulativeKm=0;
   const stops=state.routeAutoStopPlaces || [];
   const stopLabel=(idx)=>stops[idx]?.name ? `Stopp ${idx+1}: ${stops[idx].name}` : `Stopp ${idx+1}`;
@@ -1348,10 +1371,8 @@ async function searchRoute() {
   try {
     const start = await ensureRouteSelection('start', startText);
     const end = await ensureRouteSelection('end', endText);
-    const vehicle=routeVehicleMode();
     const overnights=Math.max(0,Math.min(8,Number(els.routeOvernights?.value || 0)));
     const corridor = Number(els.routeCorridor.value || 10000);
-    updateRouteLegalNotice();
 
     const initialUrl = `${OSRM_ENDPOINT}/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&steps=false`;
     const initialResponse = await fetch(initialUrl);
@@ -1371,10 +1392,10 @@ async function searchRoute() {
     let resolvedStopSearch={stops:[],elements:[],failed:0};
     let realStops=[];
     if (roughStops.length) {
-      resolvedStopSearch=await resolveRouteStopPlaces(roughStops,corridor,vehicle);
+      resolvedStopSearch=await resolveRouteStopPlaces(roughStops,corridor);
       const missing=resolvedStopSearch.stops.filter(stop=>!stop.place);
       if (missing.length) {
-        throw new Error(`Für ${missing.length} Übernachtungsstopp${missing.length===1?'':'s'} wurde kein zu ${routeVehicleLabel(vehicle)} passender Übernachtungsplatz gefunden.`);
+        throw new Error(`Für ${missing.length} Übernachtungsstopp${missing.length===1?'':'s'} wurde selbst im erweiterten Suchbereich kein Camping- oder Wohnmobilplatz gefunden.`);
       }
       realStops=resolvedStopSearch.stops;
       state.routeAutoStopPlaces=realStops;
@@ -1410,7 +1431,6 @@ async function searchRoute() {
     state.routeLayer=L.polyline(coords.map(c=>[c[1],c[0]]),{weight:6,opacity:.78}).addTo(map);
     renderRoutePlanMap(route,coords,start,end,waypointStops,legs);
     renderRouteSummary(start,end,route,legs,overnights,corridor);
-    if (els.routeSummary) els.routeSummary.insertAdjacentHTML('afterbegin', `<div class="route-vehicle-summary"><strong>${escapeHtml(routeVehicleLabel(vehicle))}</strong><span>${vehicle==='caravan'?'Reine Wohnmobil-/Reisemobilstellplätze ausgeschlossen':vehicle==='car'?'Nur Campingplätze vorgeschlagen · Pkw-Übernachtung vor Ort prüfen':'Fahrzeugregeln und Beschilderung vor Ort prüfen'}</span></div>`);
     map.fitBounds(state.routeLayer.getBounds(),{padding:[34,34]});
 
     if(overnights>0 && waypointStops.length){
@@ -1435,17 +1455,15 @@ async function searchRoute() {
       state.routeAutoStopPlaces=[];
       els.status.textContent='Campingplätze entlang der gesamten Route werden gesucht …';
       const line=simplified.map(c=>`${Number(c[1]).toFixed(5)},${Number(c[0]).toFixed(5)}`).join(',');
-      let qParts;
-      if (vehicle==='caravan') qParts=`nwr["tourism"="camp_site"](around:${corridor},${line});\nnwr["tourism"="caravan_site"]["caravans"="yes"](around:${corridor},${line});`;
-      else if (vehicle==='tent') qParts=`nwr["tourism"="camp_site"](around:${corridor},${line});\nnwr["tourism"="caravan_site"]["tents"="yes"](around:${corridor},${line});`;
-      else if (vehicle==='car') qParts=`nwr["tourism"="camp_site"](around:${corridor},${line});`;
-      else qParts=`nwr["tourism"="camp_site"](around:${corridor},${line});\nnwr["tourism"="caravan_site"](around:${corridor},${line});`;
+      const around=`(around:${corridor},${line})`;
+      const qParts=routeVehicleQueryParts(around,routeVehicleValue()).join('\n');
       const query=`[out:json][timeout:60];\n(${qParts});\nout body center qt;`;
       const places=await overpass(query);
-      places.elements=(places.elements||[]).filter(el=>{const p=normalizePlace(el);return p && vehicleEligibility(p,vehicle).allowed;});
-      state.currentSearchLabel=`Route ${routeShortName(start)} → ${routeShortName(end)}`;
+      const vehicle=routeVehicleValue();
+      const legalElements=(places.elements || []).filter(el=>{const p=normalizePlace(el);return p && vehicleEligibility(p,vehicle).allowed;});
+      state.currentSearchLabel=`Route ${routeShortName(start)} → ${routeShortName(end)} · ${routeVehicleLabel(vehicle)}`;
       if(els.sort) els.sort.value='distance';
-      ingestResults(places.elements || [],p=>{p.routeDistanceKm=distanceToRouteKm(p,simplified);});
+      ingestResults(legalElements,p=>{p.routeDistanceKm=distanceToRouteKm(p,simplified);});
     }
 
     setTimeout(()=>{
@@ -1497,7 +1515,7 @@ async function searchCountry() {
       state.currentSearchLabel = geo.name || placeText;
       const locationMode = ['sea','inland'].includes(els.location?.value) ? els.location.value : '';
       try {
-        const data = await overpass(query, { timeoutMs: 36000, maxEndpoints: 3 });
+        const data = await overpass(query, { timeoutMs: 26000, maxEndpoints: 4 });
         const elements = locationMode ? await filterRawByLocationMode(data.elements || [], bounds, locationMode, 30) : (data.elements || []);
         ingestResults(elements, place => {
           if (locationMode === 'sea') { place.sea = true; place.coastalSearch = true; place.coastRadiusKm = 30; }
@@ -1523,7 +1541,7 @@ async function searchCountry() {
       const geo = await geocodeCountryBoundary(countryName, countryCode);
       state.currentSearchLabel = coastMode ? `${countryName} · Küste` : locationMode === 'inland' ? `${countryName} · Inland` : countryName;
       const result = await searchCountryChunked(countryCode, countryName, geo.bbox, geo.geometry, { locationMode, coastRadiusKm: 30 });
-      if (!result.elements.length && result.failed) throw new Error('Die freien Kartendaten-Server konnten die Teilbereiche derzeit nicht laden. Bitte später erneut versuchen oder einen Ort eingeben.');
+      if (!result.elements.length && result.failed) throw new Error('Keiner der freien OpenStreetMap-Datenserver konnte die Teilbereiche laden. Campingfinder hat automatisch mehrere Server probiert. Bitte kurz erneut versuchen.');
       if (locationMode) {
         ingestResults(result.elements || [], place => {
           if (locationMode === 'sea') { place.sea = true; place.coastalSearch = true; place.coastRadiusKm = 30; }
@@ -1935,15 +1953,17 @@ function renderResults() {
     if (place.fee === 'free') b.push(badge('Kostenlos', 'neutral'));
     if (place.sea) b.push(badge('Küstennähe*', 'neutral'));
     if (place.styles?.glamping) b.push(badge('Glamping', 'neutral'));
-    if (place.tourism === 'caravan_site' && motorhomeOnlyByTags(place.tags, place.tourism)) b.push(badge('Nur Wohnmobil/Reisemobil', 'sand'));
-    if (place.tourism === 'caravan_site' && place.amenities.caravans === 'yes') b.push(badge('Wohnwagen ausdrücklich erlaubt', 'neutral'));
     if (place.amenities.privateBathroom === 'yes') b.push(badge('Privatbad', 'neutral'));
     if (place.amenities.sauna === 'yes') b.push(badge('Sauna', 'neutral'));
     if (place.amenities.rentalCaravan === 'yes') b.push(badge('Mietwohnwagen', 'neutral'));
     if (place.amenities.rentalTent === 'yes') b.push(badge('Mietzelt', 'neutral'));
     if (place.amenities.bungalow === 'yes') b.push(badge('Bungalow/Hütte', 'neutral'));
     if (state.personal[place.key]?.visited) b.push(badge('✓ Besucht', 'neutral'));
-    if (place.routeStopIndex) b.unshift(badge(`Übernachtung ${place.routeStopIndex}`, 'route-badge'));
+    if (place.routeStopIndex) {
+      b.unshift(badge(`Übernachtung ${place.routeStopIndex}`, 'route-badge'));
+      const elig=vehicleEligibility(place,routeVehicleValue());
+      if (elig.allowed) b.unshift(badge(elig.confirmed ? `✓ ${routeVehicleLabel()} bestätigt` : `${routeVehicleLabel()} · Regeln prüfen`, elig.confirmed ? 'route-badge' : 'neutral'));
+    }
     if (place.routeAutoSelected) b.unshift(badge('✓ Auto-Stopp', 'route-badge'));
     const fav = state.favorites.has(place.key);
     const dist = place.distanceKm ?? place.routeDistanceKm;
@@ -2223,7 +2243,8 @@ function familyAssistantItems(place) {
   }
   if (p.dog === 'yes') items.push({ label:'Hund erlaubt', state: place.dog === 'yes' ? 'yes' : place.dog === 'no' ? 'no' : 'unknown' });
   if (p.vehicle === 'motorhome' || p.vehicle === 'van') items.push({ label:p.vehicle === 'van' ? 'Van / Campervan' : 'Wohnmobil', state: familyFitState(place.amenities?.motorhome) });
-  if (p.vehicle === 'caravan') items.push({ label:'Wohnwagen', state: familyFitState(place.amenities?.caravans) });
+  if (p.vehicle === 'caravan') { const e=vehicleEligibility(place,'caravan'); items.push({ label:'Wohnwagen', state:e.allowed ? (e.confirmed?'yes':'unknown') : 'no' }); }
+  if (p.vehicle === 'car') items.push({ label:'Auto-Übernachtung', state:'unknown' });
   if (p.vehicle === 'tent') items.push({ label:'Zelt', state: familyFitState(place.amenities?.tents) });
   return items;
 }
@@ -2350,6 +2371,7 @@ async function openDetails(key) {
       </div>
     </div>
 
+    <div class="detail-vehicle-legal"><strong>Fahrzeug-Hinweis:</strong> ${escapeHtml(vehicleEligibility(place, state.routeAutoStopKeys?.has(place.key) ? routeVehicleValue() : (state.familyProfile?.vehicle || 'motorhome')).reason)}</div>
     <div class="detail-actionbar">
       ${place.website ? `<a class="mini-btn" href="${escapeHtml(place.website)}" target="_blank" rel="noopener noreferrer">Zur Original-Webseite ↗</a>` : ''}
       <a class="mini-btn secondary" href="${mapUrl}" target="_blank" rel="noopener">Auf Karte öffnen ↗</a>
@@ -2376,7 +2398,6 @@ async function openDetails(key) {
         ${infoRow('Kapazität Personen', persons)}
         ${infoRow('Zeltplätze', tentsCapacity)}
         ${infoRow('Wohnwagen/Wohnmobil-Plätze', caravanCapacity)}
-        ${infoRow('Fahrzeugregel', place.tourism === 'caravan_site' && motorhomeOnlyByTags(place.tags, place.tourism) ? 'Nur Wohnmobil/Reisemobil erkannt' : place.amenities.caravans === 'yes' ? 'Wohnwagen ausdrücklich erlaubt' : 'Nicht eindeutig – Beschilderung/Betreiber prüfen')}
         ${infoRow('Max. Aufenthalt', maxstay)}
         ${infoRow('Mindestalter', firstTag(t,'min_age','minimum_age'))}
         ${infoRow('Zufahrt / Zugang', access)}
@@ -2523,12 +2544,12 @@ const SHARE_CHECK_IDS = [
 ];
 function compactFamilyProfile() {
   const p=state.familyProfile||{};
-  const vehicle={all:'a',motorhome:'m',van:'v',caravan:'c',tent:'t'}[p.vehicle||'all']||'a';
+  const vehicle={all:'a',motorhome:'m',van:'v',caravan:'c',car:'p',tent:'t'}[p.vehicle||'all']||'a';
   return `${Math.max(1,Number(p.adults||2))}-${(p.childAges||[]).join('_')}-${p.dog==='yes'?'1':'0'}-${vehicle}`;
 }
 function parseCompactFamilyProfile(raw) {
   const parts=String(raw||'').split('-'); if(parts.length<4)return null;
-  const vehicle={a:'all',m:'motorhome',v:'van',c:'caravan',t:'tent'}[parts[3]]||'all';
+  const vehicle={a:'all',m:'motorhome',v:'van',c:'caravan',p:'car',t:'tent'}[parts[3]]||'all';
   return { adults:Math.max(1,Math.min(12,Number(parts[0]||2))), childAges:String(parts[1]||'').split('_').map(Number).filter(n=>Number.isFinite(n)&&n>=0&&n<=17), dog:parts[2]==='1'?'yes':'no', vehicle };
 }
 function buildShareUrl() {
@@ -2838,7 +2859,7 @@ function readFamilyProfileForm() {
     adults: Math.max(1,Math.min(12,Number(els.familyAdults?.value||2))),
     childAges: els.familyChildAgeList ? childAgeEditorValues() : parseChildAges(els.familyChildAges?.value),
     dog: els.familyDog?.value==='yes'?'yes':'no',
-    vehicle: ['motorhome','van','caravan','tent'].includes(els.familyVehicle?.value)?els.familyVehicle.value:'all'
+    vehicle: ['motorhome','van','caravan','car','tent'].includes(els.familyVehicle?.value)?els.familyVehicle.value:'all'
   };
 }
 function persistFamilyProfile() {
@@ -2855,7 +2876,7 @@ function renderFamilyProfile() {
   if (els.familyVehicle) els.familyVehicle.value=p.vehicle||'all';
   if (els.familySummary) {
     const ages=ageProfileLabels(p.childAges||[]);
-    const vehicle={all:'Camping-Art egal',motorhome:'Wohnmobil',van:'Van',caravan:'Wohnwagen',tent:'Zelt'}[p.vehicle||'all'];
+    const vehicle={all:'Camping-Art egal',motorhome:'Wohnmobil',van:'Van',caravan:'Wohnwagen',car:'Auto',tent:'Zelt'}[p.vehicle||'all'];
     els.familySummary.innerHTML=`<strong>${p.adults||2} Erwachsene${p.childAges?.length ? ` · ${p.childAges.length} Kinder` : ''}</strong><span>${ages.length?ages.join(' · '):'Keine Kinder-Altersgruppe'} · ${p.dog==='yes'?'mit Hund':'ohne Hund'} · ${vehicle}</span>`;
   }
 }
@@ -2871,7 +2892,13 @@ function applyFamilyProfile() {
   [els.motorhome,els.caravan,els.tents].forEach(el=>{if(el)el.checked=false;});
   if ((p.vehicle==='motorhome'||p.vehicle==='van')&&els.motorhome) els.motorhome.checked=true;
   if (p.vehicle==='caravan'&&els.caravan) els.caravan.checked=true;
+  if (p.vehicle==='car'&&els.type) els.type.value='camp_site';
   if (p.vehicle==='tent'&&els.tents) els.tents.checked=true;
+  if (els.routeVehicle && ['motorhome','van','caravan','car','tent'].includes(p.vehicle)) {
+    els.routeVehicle.value=p.vehicle;
+    localStorage.setItem('campingfinder:routeVehicle',p.vehicle);
+    updateRouteLegalNotice();
+  }
   if ($('calcAdults')) $('calcAdults').value=String(p.adults||2);
   if ($('calcChildren')) $('calcChildren').value=String(ages.length);
   calculateStay();
@@ -2986,7 +3013,7 @@ function printTravelFolder(){
   const b=currentBudgetSnapshot(), eur=n=>Number(n||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'}), p=state.familyProfile||{};
   let offset=0;
   const rows=stages.map((stage,i)=>{ const nights=Math.max(1,Number(stage.nights||1)); const date=state.trip.startDate?dateAddDays(state.trip.startDate,offset):''; offset+=nights; return `<tr><td>${i+1}</td><td><strong>${escapeHtml(stage.name)}</strong><br><small>${escapeHtml(stage.address||stage.typeLabel||'')}</small></td><td>${date?escapeHtml(date):'–'}</td><td>${nights}</td><td>${Number(stage.lat).toFixed(5)}, ${Number(stage.lon).toFixed(5)}</td><td>${stage.website?`<span>${escapeHtml(stage.website)}</span>`:'–'}</td></tr>`; }).join('');
-  sheet.innerHTML=`<div class="print-head"><div><h1>Campingfinder</h1><p>Ganz Europa gehört dir.</p></div><strong>${escapeHtml(state.trip.name||'Meine Reise')}</strong></div><div class="print-meta"><span><strong>Reisebeginn:</strong> ${escapeHtml(state.trip.startDate||'nicht festgelegt')}</span><span><strong>Etappen:</strong> ${stages.length}</span><span><strong>Nächte:</strong> ${stages.reduce((a,x)=>a+Math.max(1,Number(x.nights||1)),0)}</span></div><h2>Reiseprofil</h2><p>${Math.max(1,Number(p.adults||2))} Erwachsene${p.childAges?.length?` · Kinder: ${p.childAges.join(', ')} Jahre`:''} · ${p.dog==='yes'?'mit Hund':'ohne Hund'} · ${escapeHtml({all:'Camping-Art offen',motorhome:'Wohnmobil',van:'Van',caravan:'Wohnwagen',tent:'Zelt'}[p.vehicle||'all'])}</p><h2>Etappen</h2><table><thead><tr><th>#</th><th>Platz</th><th>Ankunft</th><th>Nächte</th><th>Koordinaten</th><th>Webseite</th></tr></thead><tbody>${rows}</tbody></table><h2>Reisebudget</h2><div class="print-budget"><span>Strecke: <strong>${Math.round(b.distance)} km</strong></span><span>Kraftstoff: <strong>${eur(b.fuel)}</strong></span><span>Camping: <strong>${eur(b.camping)}</strong></span><span>Maut/Fähre/Parken: <strong>${eur(b.tolls)}</strong></span><span>Verpflegung: <strong>${eur(b.food)}</strong></span><span>Extras: <strong>${eur(b.extras)}</strong></span><span>Gesamt: <strong>${eur(b.total)}</strong></span></div><p class="print-foot">Erstellt mit Campingfinder · © 2026 Marcel Hentschel · Platzdaten können unvollständig sein; vor der Reise Angaben beim Betreiber prüfen.</p>`;
+  sheet.innerHTML=`<div class="print-head"><div><h1>Campingfinder</h1><p>Ganz Europa gehört dir.</p></div><strong>${escapeHtml(state.trip.name||'Meine Reise')}</strong></div><div class="print-meta"><span><strong>Reisebeginn:</strong> ${escapeHtml(state.trip.startDate||'nicht festgelegt')}</span><span><strong>Etappen:</strong> ${stages.length}</span><span><strong>Nächte:</strong> ${stages.reduce((a,x)=>a+Math.max(1,Number(x.nights||1)),0)}</span></div><h2>Reiseprofil</h2><p>${Math.max(1,Number(p.adults||2))} Erwachsene${p.childAges?.length?` · Kinder: ${p.childAges.join(', ')} Jahre`:''} · ${p.dog==='yes'?'mit Hund':'ohne Hund'} · ${escapeHtml({all:'Camping-Art offen',motorhome:'Wohnmobil',van:'Van',caravan:'Wohnwagen',car:'Auto',tent:'Zelt'}[p.vehicle||'all'])}</p><h2>Etappen</h2><table><thead><tr><th>#</th><th>Platz</th><th>Ankunft</th><th>Nächte</th><th>Koordinaten</th><th>Webseite</th></tr></thead><tbody>${rows}</tbody></table><h2>Reisebudget</h2><div class="print-budget"><span>Strecke: <strong>${Math.round(b.distance)} km</strong></span><span>Kraftstoff: <strong>${eur(b.fuel)}</strong></span><span>Camping: <strong>${eur(b.camping)}</strong></span><span>Maut/Fähre/Parken: <strong>${eur(b.tolls)}</strong></span><span>Verpflegung: <strong>${eur(b.food)}</strong></span><span>Extras: <strong>${eur(b.extras)}</strong></span><span>Gesamt: <strong>${eur(b.total)}</strong></span></div><p class="print-foot">Erstellt mit Campingfinder · © 2026 Marcel Hentschel · Platzdaten können unvollständig sein; vor der Reise Angaben beim Betreiber prüfen.</p>`;
   sheet.setAttribute('aria-hidden','false');
   window.print();
   setTimeout(()=>sheet.setAttribute('aria-hidden','true'),500);
@@ -3137,7 +3164,7 @@ els.countryBtn.addEventListener('click', searchCountry);
 els.mapBtn.addEventListener('click', searchMapArea);
 els.nearMe?.addEventListener('click', searchNearMe);
 els.routeBtn?.addEventListener('click', searchRoute);
-els.routeVehicle?.addEventListener('change', updateRouteLegalNotice);
+els.routeVehicle?.addEventListener('change',()=>{localStorage.setItem('campingfinder:routeVehicle',els.routeVehicle.value);updateRouteLegalNotice();});
 $('routeSwapBtn')?.addEventListener('click',()=>{const a=els.routeStart?.value||'',b=els.routeEnd?.value||'';if(els.routeStart)els.routeStart.value=b;if(els.routeEnd)els.routeEnd.value=a;const sel=state.routeSelections.start;state.routeSelections.start=state.routeSelections.end;state.routeSelections.end=sel;const rs=els.routeStartResolved?.textContent||'',re=els.routeEndResolved?.textContent||'';if(els.routeStartResolved)els.routeStartResolved.textContent=re;if(els.routeEndResolved)els.routeEndResolved.textContent=rs;});
 $('routeUseLocationBtn')?.addEventListener('click',()=>{const btn=$('routeUseLocationBtn');if(!navigator.geolocation){alert('Standortfunktion ist in diesem Browser nicht verfügbar.');return;}if(btn){btn.disabled=true;btn.textContent='Standort wird bestimmt …';}navigator.geolocation.getCurrentPosition(pos=>{if(els.routeStart)els.routeStart.value=`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;state.routeSelections.start={lat:pos.coords.latitude,lon:pos.coords.longitude,name:'Eigener Standort',type:'location'};if(els.routeStartResolved){els.routeStartResolved.textContent='✓ Eigener Standort';els.routeStartResolved.classList.add('ok');els.routeStartResolved.classList.remove('warn');}if(btn){btn.disabled=false;btn.textContent='Eigenen Standort als Start';}},()=>{if(btn){btn.disabled=false;btn.textContent='Eigenen Standort als Start';}alert('Standort konnte nicht bestimmt werden.');},{timeout:10000,maximumAge:300000});});
 els.mapLayer?.addEventListener('change', () => switchMapLayer(els.mapLayer.value));
@@ -3268,6 +3295,13 @@ els.install.addEventListener('click', async () => {
 });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
+if (els.routeVehicle) {
+  const savedRouteVehicle=localStorage.getItem('campingfinder:routeVehicle');
+  const profileVehicle=state.familyProfile?.vehicle;
+  els.routeVehicle.value=['motorhome','van','caravan','car','tent'].includes(savedRouteVehicle) ? savedRouteVehicle : (['motorhome','van','caravan','car','tent'].includes(profileVehicle) ? profileVehicle : 'motorhome');
+}
+updateRouteLegalNotice();
+
 restoreTravelBudget();
 calculateTravelBudget();
 initTheme();
@@ -3275,8 +3309,6 @@ syncQuickControls();
 updateCompareBar();
 applyLanguage(state.language);
 renderFamilyProfile();
-if (els.routeVehicle && state.familyProfile?.vehicle && ['motorhome','van','caravan','tent'].includes(state.familyProfile.vehicle)) els.routeVehicle.value=state.familyProfile.vehicle;
-updateRouteLegalNotice();
 renderTrip();
 renderOfflineStatus();
 renderMyPlaces();
