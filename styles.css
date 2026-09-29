@@ -1154,3 +1154,112 @@ html {
   .route-segment-label strong{font-size:.68rem}
   .route-segment-label span{font-size:.58rem}
 }
+
+/* v26 – Ergebnislisten: vollständige Platznamen und robuste Kartenhöhe */
+.results-list {
+  grid-auto-rows: max-content;
+  grid-auto-flow: row;
+  min-height: 0;
+}
+.result-item {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  align-self: start;
+}
+.result-card-shell {
+  grid-template-columns: 64px minmax(0, 1fr) !important;
+  width: 100%;
+  height: auto !important;
+  min-height: 112px;
+  max-height: none !important;
+  align-items: stretch;
+}
+.result-content {
+  display: block !important;
+  min-width: 0;
+  width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 14px 15px 15px !important;
+}
+.result-eyebrow {
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+.result-source {
+  flex: 0 0 auto;
+}
+.result-top {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.result-top > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.result-title {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 0 5px !important;
+  color: var(--ink) !important;
+  font-size: 1.03rem;
+  font-weight: 850;
+  line-height: 1.25;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.result-sub {
+  display: block;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+}
+.result-visual {
+  height: auto !important;
+  min-height: 100%;
+  align-self: stretch;
+}
+.result-facts,
+.badges,
+.result-trust,
+.result-actions,
+.weather-pill,
+.match-strip {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+@media (max-width: 780px) {
+  .results-list { gap: 8px; }
+  .result-card-shell { grid-template-columns: 48px minmax(0,1fr) !important; min-height: 104px; }
+  .result-content { padding: 11px 11px 12px !important; }
+  .result-visual { padding-top: 13px; }
+  .result-title { font-size: .96rem !important; line-height: 1.28; }
+  .result-sub { font-size: .72rem; line-height: 1.38; }
+  .result-actions .mini-btn,
+  .result-actions .compare-toggle { flex: 1 1 calc(50% - 4px); min-width: 0; }
+}
+
+@media (max-width: 390px) {
+  .result-card-shell { grid-template-columns: 42px minmax(0,1fr) !important; }
+  .result-content { padding: 10px !important; }
+  .result-eyebrow { align-items: flex-start; }
+  .result-source { width: 100%; white-space: normal; }
+}

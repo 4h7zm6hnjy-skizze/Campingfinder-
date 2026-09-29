@@ -1,4 +1,4 @@
-const CACHE = 'campingfinder-v25';
+const CACHE = 'campingfinder-v26';
 const LOCAL_ASSETS = [
   './', './index.html', './styles.css', './app.js', './qr-local.js', './manifest.webmanifest',
   './logo-campingfinder.png', './logo-campingfinder-700.webp',
@@ -23,15 +23,30 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   const cacheableExternal = url.hostname === 'unpkg.com' && url.pathname.includes('/leaflet@1.9.4/');
   if (url.origin !== location.origin && !cacheableExternal) return;
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      const network = fetch(event.request)
+
+  const isFreshCode = url.origin === location.origin && (
+    event.request.mode === 'navigate' || /\.(?:html|css|js)$/.test(url.pathname)
+  );
+
+  if (isFreshCode) {
+    event.respondWith(
+      fetch(event.request)
         .then(response => {
-          if (response.ok || response.type === 'opaque') caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
+          if (response.ok) caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
           return response;
         })
-        .catch(() => cached);
-      return cached || network;
+        .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(response => {
+        if (response.ok || response.type === 'opaque') caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
+        return response;
+      });
     })
   );
 });

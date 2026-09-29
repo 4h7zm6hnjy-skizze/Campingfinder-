@@ -1,3 +1,11 @@
+# v26
+
+- Ergebnislisten auf PC, Tablet und Smartphone repariert.
+- Platznamen und Adressen werden vollständig sichtbar dargestellt und nicht mehr durch zusammenfallende Kartenhöhen abgeschnitten.
+- Ergebniszeilen verwenden Inhalts-Höhen statt komprimierter Rasterzeilen.
+- Lange Platznamen dürfen mehrzeilig umbrechen.
+- Mobile Ergebnisaktionen bleiben innerhalb der Karte sichtbar.
+
 # Campingfinder v25
 
 ## v25 – Audit & Stabilität

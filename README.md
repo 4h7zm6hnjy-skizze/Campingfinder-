@@ -1,6 +1,6 @@
-# Campingfinder v25
+# Campingfinder v26
 
-**Aktuelle Version: v25** – geprüfte Stabilitätsversion mit geografischer Meer-/Inland-Suche, vollständigerer intelligenter Ländersuche und robuster Stoppsuche im Routenplaner.
+**Aktuelle Version: v26** – geprüfte Stabilitätsversion mit geografischer Meer-/Inland-Suche, vollständigerer intelligenter Ländersuche und robuster Stoppsuche im Routenplaner.
 
 **Slogan:** Ganz Europa gehört dir.
 
@@ -194,7 +194,7 @@ Die Länder-/Küstensuche wurde für Länder mit besonderen OSM-Grenzrelationen 
 Der Routenplaner kann 0 bis 8 Zwischenübernachtungen berücksichtigen. Eine einzelne Übernachtung wird am Mittelpunkt der Route geplant. Bei mehreren Übernachtungen wird die Strecke in möglichst gleich lange Fahretappen aufgeteilt. Die Platzsuche kann dadurch auf kleine Suchradien rund um die geplanten Stopppunkte begrenzt werden. Die Karte zeigt Start, Ziel, nummerierte Stopps sowie Kilometer und Fahrzeit je Etappe.
 
 
-## v25 – Prüf- und Stabilitätsupdate
+## v26 – Prüf- und Stabilitätsupdate
 - Meer- und Inland-Filter funktionieren auch bei einer konkreten Orts-/Regionssuche geografisch, nicht nur bei einer reinen Ländersuche.
 - Intelligente Suche erkennt jetzt alle im Länderfeld enthaltenen europäischen Ländernamen auf Deutsch; viele englische Varianten wurden ergänzt.
 - Campingplatzabfragen an mehreren Übernachtungsstopps werden pro Stopp ausgeführt, damit ein einzelner Overpass-Timeout nicht die komplette Route verwirft.
