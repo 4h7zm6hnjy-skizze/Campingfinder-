@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Campingfinder – Datenquellen und Fremdkomponenten | Campingfinder-</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Campingfinder – Datenquellen und Fremdkomponenten" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://4h7zm6hnjy-skizze.github.io/Campingfinder-/THIRD_PARTY_LICENSES.html" />
+<meta property="og:url" content="https://4h7zm6hnjy-skizze.github.io/Campingfinder-/THIRD_PARTY_LICENSES.html" />
+<meta property="og:site_name" content="Campingfinder-" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Campingfinder – Datenquellen und Fremdkomponenten" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"Campingfinder – Datenquellen und Fremdkomponenten","url":"https://4h7zm6hnjy-skizze.github.io/Campingfinder-/THIRD_PARTY_LICENSES.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/Campingfinder-/assets/css/style.css?v=ed66c3276d8fc3e40c38daac3e99938798bb679b">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/Campingfinder-/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://4h7zm6hnjy-skizze.github.io/Campingfinder-/">Campingfinder-</a></h1>
+      
+
+      <h1 id="campingfinder--datenquellen-und-fremdkomponenten">Campingfinder – Datenquellen und Fremdkomponenten</h1>
+
+<p>Campingfinder selbst: © 2026 Marcel Hentschel.</p>
+
+<p>Die App ist so ausgelegt, dass sie ohne kostenpflichtige API-Schlüssel oder Abo-Dienste betrieben werden kann. „Kostenlos“ bedeutet dabei nicht „ohne Lizenzbedingungen“: freie Daten und Open-Source-Software haben weiterhin Bedingungen wie Namensnennung.</p>
+
+<h2 id="openstreetmap">OpenStreetMap</h2>
+<ul>
+  <li>Daten: OpenStreetMap-Mitwirkende</li>
+  <li>Lizenz: Open Database License (ODbL)</li>
+  <li>Nutzung in Campingfinder: Campingplatz-/Stellplatzdaten und Standardkarte</li>
+  <li>Erforderlich: sichtbare Namensnennung/Attribution</li>
+</ul>
+
+<h2 id="overpass-api">Overpass API</h2>
+<ul>
+  <li>Nutzung: Abfrage von OpenStreetMap-Daten</li>
+  <li>Öffentliche Instanzen sind Gemeinschaftsdienste mit Nutzungsgrenzen und ohne Verfügbarkeitsgarantie.</li>
+  <li>Die App enthält mehrere austauschbare öffentliche Endpunkte.</li>
+</ul>
+
+<h2 id="nominatim">Nominatim</h2>
+<ul>
+  <li>Nutzung: Orts- und Regionssuche</li>
+  <li>Öffentlicher Dienst mit strengen Nutzungsgrenzen; Campingfinder cached Suchergebnisse lokal und verwendet keine Autocomplete-Dauerabfragen.</li>
+  <li>Datenbasis: OpenStreetMap / ODbL</li>
+</ul>
+
+<h2 id="opentopomap">OpenTopoMap</h2>
+<ul>
+  <li>Nutzung: optionale topografische Kartenebene</li>
+  <li>Lizenz der Online-Karte: CC-BY-SA</li>
+  <li>Namensnennung wird direkt in der Kartenebene angezeigt.</li>
+</ul>
+
+<h2 id="open-meteo">Open-Meteo</h2>
+<ul>
+  <li>Nutzung: aktuelles Wetter und Vorhersage</li>
+  <li>Wetterdaten: CC BY 4.0</li>
+  <li>Öffentliche Free API: ohne API-Key für nicht-kommerzielle Nutzung, mit Nutzungsgrenzen</li>
+  <li>Server-Software ist Open Source (AGPLv3) und kann bei Bedarf selbst betrieben werden.</li>
+</ul>
+
+<h2 id="leaflet-194">Leaflet 1.9.4</h2>
+<ul>
+  <li>Nutzung: interaktive Karte im Browser</li>
+  <li>Lizenz: BSD 2-Clause</li>
+  <li>Projekt: https://leafletjs.com/</li>
+</ul>
+
+<h2 id="osrm">OSRM</h2>
+<ul>
+  <li>Nutzung: Routenberechnung</li>
+  <li>Software-Lizenz: BSD 2-Clause</li>
+  <li>Die aktuell verwendete öffentliche Demo-Instanz ist ein Gratis-/Best-Effort-Dienst ohne Verfügbarkeitsgarantie.</li>
+  <li>Für langfristige Unabhängigkeit kann OSRM selbst betrieben oder durch einen anderen freien Routing-Endpunkt ersetzt werden.</li>
+</ul>
+
+<h2 id="grundsatz">Grundsatz</h2>
+<p>Campingfinder soll keine Funktion enthalten, für die ein kostenpflichtiger API-Schlüssel zwingend erforderlich ist. Externe kostenlose Dienste können ihre Nutzungsbedingungen oder Limits ändern. Deshalb werden Endpunkte im Code zentral definiert und können ausgetauscht werden.</p>
+
+<h2 id="lokaler-qr-code-generator">Lokaler QR-Code-Generator</h2>
+<ul>
+  <li>Datei: <code class="language-plaintext highlighter-rouge">qr-local.js</code></li>
+  <li>Nutzung: Erzeugung des QR-Codes für teilbare Campingfinder-Suchen vollständig im Browser</li>
+  <li>Implementierung: projektspezifischer eigener Code; keine externe QR-API und keine zusätzliche Fremdbibliothek erforderlich</li>
+</ul>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/4h7zm6hnjy-skizze/Campingfinder-/edit/main/THIRD_PARTY_LICENSES.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

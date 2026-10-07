@@ -1,6 +1,6 @@
 {
-  "version": "32.1.0",
+  "version": "32.2.0",
   "name": "Campingfinder",
-  "release": "v32.1",
-  "notes": "Versionsfix: v32.0 enthielt in index.html noch feste v31.7-Verweise. Alle sichtbaren Versionsangaben und Cache-Busting-Parameter wurden auf v32.1.0 vereinheitlicht."
+  "release": "v32.2",
+  "notes": "Stabilitätsrelease: Endlosschleifen in MutationObservern behoben, v32-Responsive-CSS statisch geladen, iPhone/Safari-Seitenaufbau gehärtet und mobile Navigation auf sechs feste Bereiche korrigiert."
 }

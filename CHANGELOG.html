@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>v30 – Schnellere Suche &amp; robuste Routenstopps | Campingfinder-</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="v30 – Schnellere Suche &amp; robuste Routenstopps" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://4h7zm6hnjy-skizze.github.io/Campingfinder-/CHANGELOG.html" />
+<meta property="og:url" content="https://4h7zm6hnjy-skizze.github.io/Campingfinder-/CHANGELOG.html" />
+<meta property="og:site_name" content="Campingfinder-" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="v30 – Schnellere Suche &amp; robuste Routenstopps" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"v30 – Schnellere Suche &amp; robuste Routenstopps","url":"https://4h7zm6hnjy-skizze.github.io/Campingfinder-/CHANGELOG.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/Campingfinder-/assets/css/style.css?v=ed66c3276d8fc3e40c38daac3e99938798bb679b">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/Campingfinder-/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://4h7zm6hnjy-skizze.github.io/Campingfinder-/">Campingfinder-</a></h1>
+      
+
+      <h1 id="v30--schnellere-suche--robuste-routenstopps">v30 – Schnellere Suche &amp; robuste Routenstopps</h1>
+
+<ul>
+  <li>Ländersuche lädt Teilbereiche jetzt mit maximal zwei parallelen Abfragen statt streng nacheinander.</li>
+  <li>Kürzere Overpass-Zeitlimits und schnellerer Serverwechsel verhindern minutenlanges Hängen.</li>
+  <li>Zwischenübernachtungen suchen per Bounding-Box statt teurer großer <code class="language-plaintext highlighter-rouge">around</code>-Abfragen.</li>
+  <li>Zwei Übernachtungsbereiche werden parallel gesucht; bei mehr Stopps gilt ein schonendes Limit von zwei gleichzeitigen Abfragen.</li>
+  <li>Wohnwagen-Suche lädt normale Campingplätze breit und prüft die Fahrzeugzulässigkeit anschließend lokal; reine Wohnmobilstellplätze bleiben ohne ausdrückliche Wohnwagenfreigabe ausgeschlossen.</li>
+  <li>Bereits geladene Campingplätze werden für Routenstopps wiederverwendet.</li>
+  <li>Fehlermeldungen unterscheiden nun zwischen „kein geeigneter Platz“ und „Datenserver nicht erreichbar“.</li>
+</ul>
+
+<h1 id="campingfinder-v29">Campingfinder v29</h1>
+
+<ul>
+  <li>Overpass-Serverliste auf aktuell erreichbare freie Instanzen umgestellt.</li>
+  <li>Veraltete Hosts <code class="language-plaintext highlighter-rouge">overpass.kumi.systems</code> und <code class="language-plaintext highlighter-rouge">lz4.overpass-api.de</code> entfernt.</li>
+  <li>Neue Mirrors: private.coffee, FOSSGIS, VK Maps und OSM Japan.</li>
+  <li>Automatischer Server-Fallback mit kurzer Cooldown-Zeit bei Timeout/429/5xx.</li>
+  <li>Safari-Fallback von POST auf GET für kurze Overpass-Abfragen.</li>
+  <li>Länder werden in kleinere Teilbereiche zerlegt; fehlgeschlagene Bereiche werden nochmals geteilt.</li>
+  <li>Küstenabfragen brechen schneller auf einen anderen Server/Fallback um.</li>
+</ul>
+
+<h1 id="campingfinder--changelog">Campingfinder – Changelog</h1>
+
+<h2 id="v28">v28</h2>
+<ul>
+  <li>Fahrzeugart im Routenplaner ergänzt: Wohnmobil, Van, Wohnwagen, Auto oder Zelt.</li>
+  <li>Wohnwagen: reine Reisemobil-/Wohnmobilstellplätze werden ausgeschlossen, außer <code class="language-plaintext highlighter-rouge">caravans=yes</code> erlaubt Wohnwagen ausdrücklich.</li>
+  <li>Auto: keine gewöhnlichen Parkplätze oder Reisemobilstellplätze als reguläre Übernachtungsstopps; Campingfinder nutzt nur Campingplätze und weist auf Betreiber-/Landesregeln hin.</li>
+  <li>Zelt: Reisemobilstellplätze nur bei ausdrücklichem <code class="language-plaintext highlighter-rouge">tents=yes</code>.</li>
+  <li>Wohnmobil/Van: Camping- und Reisemobilstellplätze, sofern nicht ausdrücklich ausgeschlossen.</li>
+  <li>Dynamischer Rechtshinweis im Routenplaner; Beschilderung, örtliche Regeln und Platzordnung haben Vorrang.</li>
+  <li>Normale Wohnwagen-Suche nutzt dieselbe konservative Fahrzeuglogik.</li>
+</ul>
+
+<h1 id="v27">v27</h1>
+
+<ul>
+  <li>Routenplaner findet pro Idealstopp automatisch den nächstgelegenen Camping-/Wohnmobilplatz.</li>
+  <li>Suchradius erweitert sich bei Bedarf schrittweise bis 200 km.</li>
+  <li>Route wird über die realen Übernachtungsplätze neu berechnet.</li>
+  <li>Etappen-Kilometer und Fahrzeiten basieren auf der angepassten Route.</li>
+  <li>Automatisch gewählte Stopps werden trotz alter Finder-Filter sichtbar gehalten.</li>
+  <li>Doppelte Verwendung desselben Platzes bei mehreren Übernachtungen wird vermieden.</li>
+  <li>PWA-Cache auf v27 angehoben.</li>
+</ul>
+
+<h1 id="v26">v26</h1>
+
+<ul>
+  <li>Ergebnislisten auf PC, Tablet und Smartphone repariert.</li>
+  <li>Platznamen und Adressen werden vollständig sichtbar dargestellt und nicht mehr durch zusammenfallende Kartenhöhen abgeschnitten.</li>
+  <li>Ergebniszeilen verwenden Inhalts-Höhen statt komprimierter Rasterzeilen.</li>
+  <li>Lange Platznamen dürfen mehrzeilig umbrechen.</li>
+  <li>Mobile Ergebnisaktionen bleiben innerhalb der Karte sichtbar.</li>
+</ul>
+
+<h1 id="campingfinder-v25">Campingfinder v25</h1>
+
+<h2 id="v25--audit--stabilität">v25 – Audit &amp; Stabilität</h2>
+<ul>
+  <li>Geografische Meer-/Inland-Erkennung funktioniert jetzt auch bei einer konkreten Orts- oder Regionssuche.</li>
+  <li>Intelligente Suche erkennt alle Länder aus der Länderauswahl auf Deutsch sowie zusätzliche englische Ländernamen.</li>
+  <li>Übernachtungsstopp-Suche im Routenplaner fragt jeden Stopp getrennt ab; einzelne Serverfehler reißen nicht mehr die komplette Stoppsuche mit.</li>
+  <li>Routenmarker zeigen bei Stopp 2, 3 usw. die kumulierten Kilometer ab Start korrekt an.</li>
+  <li>Zusätzliche Accessibility-Beschriftungen und Dokumentation bereinigt.</li>
+  <li>PWA-Cache auf v25 angehoben.</li>
+</ul>
+
+<h1 id="campingfinder-v24">Campingfinder v24</h1>
+
+<h2 id="v24">v24</h2>
+<ul>
+  <li>Routenplaner: 0–8 Zwischenübernachtungen auswählbar.</li>
+  <li>1 Übernachtung liegt exakt bei 50 % der Route; mehrere Übernachtungen teilen die Fahrt in möglichst gleich lange Etappen.</li>
+  <li>Campingplatzsuche kann auf die geplanten Übernachtungspunkte begrenzt werden statt auf den gesamten Routenkorridor.</li>
+  <li>Karte zeigt Start, Ziel und nummerierte Übernachtungsstopps.</li>
+  <li>Kilometer und Fahrzeit werden für die Gesamtroute und jede einzelne Fahretappe angezeigt.</li>
+  <li>
+    <p>Ergebnisliste kennzeichnet, zu welchem Übernachtungsstopp ein Platz gehört und wie weit er vom Zielpunkt entfernt liegt.</p>
+  </li>
+  <li>Länder-Suche neu aufgebaut: Overpass erhält nur kleine Bounding-Box-Abfragen, keine kombinierte Länderflächen-Abfrage mehr.</li>
+  <li>Zugehörigkeit zum Land wird lokal mit einer vereinfachten Nominatim-GeoJSON-Landesgrenze geprüft.</li>
+  <li>Küstensuche lädt zuerst normale Campingplätze und prüft geografisch die Distanz zu OSM-Küstenlinien (ca. 30 km).</li>
+  <li>Weniger Teilabfragen und kürzere Timeouts; 0-Treffer-Suchen bleiben nicht mehr minutenlang hängen.</li>
+  <li>Weiterhin ohne kostenpflichtige API-Schlüssel.</li>
+</ul>
+
+<h1 id="campingfinder--changelog-1">Campingfinder – Changelog</h1>
+
+<h2 id="v21">v21</h2>
+<ul>
+  <li>„In meiner Nähe“ bis 600 km erweitert.</li>
+  <li>Neue Radien: 150, 200, 300, 400, 500 und 600 km.</li>
+  <li>Große Umkreise werden serverfreundlich in Teilgebiete zerlegt und anschließend exakt nach Luftlinienentfernung gefiltert.</li>
+  <li>Kartenansicht passt bei großen Radien automatisch alle Treffer ein.</li>
+</ul>
+
+<h1 id="campingfinder-v20">Campingfinder v20</h1>
+
+<ul>
+  <li>Intelligente Suche: Wunschbegriffe werden bei erkanntem Land nicht mehr automatisch als Ort/Region übernommen.</li>
+  <li>Beispiel: „Frankreich mit Pool und Rutsche“ lässt das Ortsfeld leer und setzt nur Land + Filter.</li>
+  <li>Ein Ort innerhalb eines Landes wird nur bei eindeutiger Formulierung wie „Frankreich in Nizza mit Pool“ übernommen.</li>
+  <li>„Rutsche“ (Singular) sowie weitere Varianten werden jetzt als Wasserpark/Rutschen-Filter erkannt.</li>
+</ul>
+
+<h1 id="campingfinder--changelog-2">Campingfinder – Changelog</h1>
+
+<h2 id="v19--intelligente-küstensuche">v19 – Intelligente Küstensuche</h2>
+<ul>
+  <li>„Frankreich und Meer“ sowie vergleichbare Länder+Meer-Suchen nutzen jetzt echte OpenStreetMap-Küstenlinien statt nur Text-Tags an Campingplätzen.</li>
+  <li>Campingplätze/Wohnmobilstellplätze werden bei Länder+Meer-Suche bis ca. 30 km Luftlinie von der Küste gesucht.</li>
+  <li>Küstensuche wird wie die normale Ländersuche in kleine Teilgebiete zerlegt, damit freie Overpass-Server weniger schnell überlasten.</li>
+  <li>Treffer aus der geografischen Küstensuche werden transparent als Küstennähe behandelt.</li>
+</ul>
+
+<h2 id="v18--eindeutige-ortsauswahl">v18 – Eindeutige Ortsauswahl</h2>
+<ul>
+  <li>Bei mehrfach vorkommenden Orts- und Städtenamen fragt Campingfinder jetzt nach dem gemeinten Ort.</li>
+  <li>Auswahl zeigt Ort, Region/Bundesland und Land sowie den vollständigen Nominatim-Namen.</li>
+  <li>Die Suche startet erst nach der Auswahl; Abbrechen verändert die bisherigen Treffer nicht.</li>
+  <li>Routensuche behält ihre bestehenden Start-/Zielvorschläge.</li>
+  <li>PWA-Cache auf v18 angehoben.</li>
+</ul>
+
+<h2 id="v15--robuste-länder-suche">v15 – robuste Länder-Suche</h2>
+<ul>
+  <li>Große Länder werden nicht mehr in einer einzigen Overpass-Abfrage geladen.</li>
+  <li>Länder werden automatisch in kleinere Kartenbereiche aufgeteilt und schrittweise zusammengeführt.</li>
+  <li>Teilbereiche mit 429/5xx/Timeout werden automatisch weiter geteilt.</li>
+  <li>Bereits geladene Treffer bleiben erhalten, wenn einzelne Teilbereiche vorübergehend ausfallen.</li>
+  <li>Abfragen werden innerhalb der Landesgrenze UND des jeweiligen Kartenabschnitts begrenzt.</li>
+  <li>Overpass-Ausgabe auf geografische Sortierung (<code class="language-plaintext highlighter-rouge">qt</code>) optimiert.</li>
+  <li>PWA-Cache auf v15 aktualisiert.</li>
+</ul>
+
+<h2 id="version-14--mobile--suche">Version 14 – Mobile &amp; Suche</h2>
+<ul>
+  <li>Overpass-Suchabfragen korrigiert (Union-Blöcke werden korrekt mit Semikolon abgeschlossen).</li>
+  <li>Suche nach Land, Ort, Kartenbereich, Nähe und Route repariert.</li>
+  <li>iPhone-Hochformat deutlich kompakter und touchfreundlicher.</li>
+  <li>iOS-Formularzoom verhindert (Formularschrift mindestens 16 px).</li>
+  <li>Kinderalter: beliebig mehrere Kinder über „+ Kind hinzufügen“ statt Komma-Eingabe.</li>
+  <li>PWA-Cache auf v14 angehoben.</li>
+</ul>
+
+<h2 id="version-13">Version 13</h2>
+<ul>
+  <li>Stabilitäts-/Offline-Fallback für die Kartenbibliothek</li>
+  <li>PWA-Cache aktualisiert</li>
+  <li>PC-, Tablet- und Smartphone-Ausgabe final geprüft</li>
+  <li>direkter Hinweis zum Melden von Kartenfehlern ergänzt</li>
+  <li>teilbare Suche, lokaler QR-Code, Familien-Assistent, 4er-Vergleich, Kalenderexport, Druck-Reisemappe und Statistik aus Version 12 beibehalten</li>
+</ul>
+
+<h2 id="version-12">Version 12</h2>
+<ul>
+  <li>teilbare Suche per URL und lokal erzeugtem QR-Code</li>
+  <li>Familien-Assistent mit Ja / Nein / Unbekannt</li>
+  <li>Vergleich bis zu vier Plätze</li>
+  <li>Reisebeginn und Nächte je Etappe</li>
+  <li>Kalenderexport <code class="language-plaintext highlighter-rouge">.ics</code></li>
+  <li>Druck-/PDF-Reisemappe</li>
+  <li>lokale Camping-Statistik</li>
+  <li>Routenplaner und Overpass-Zwischencache verbessert</li>
+</ul>
+
+<h2 id="version-11">Version 11</h2>
+<ul>
+  <li>intelligente lokale Freitextsuche</li>
+  <li>Datenqualitätsanzeige</li>
+  <li>Reisebudget</li>
+  <li>Desktop-Splitansicht und Strg/Cmd+K
+    <h2 id="v16--sichere-navigation--ortsauswahl">v16 – sichere Navigation / Ortsauswahl</h2>
+  </li>
+  <li>Start und Ziel zeigen Ortsvorschläge vor der Routenberechnung.</li>
+  <li>Mehrdeutige Orte müssen bewusst ausgewählt werden.</li>
+  <li>Häufige Tippfehler wie „garderssee“ werden als Gardasee vorgeschlagen.</li>
+  <li>Die Route zeigt den tatsächlich aufgelösten Ortsnamen statt nur den eingegebenen Text.</li>
+  <li>Eigenen Standort und Start↔Ziel behalten die bestätigten Koordinaten.</li>
+</ul>
+
+<h2 id="v17">v17</h2>
+<ul>
+  <li>Ergebnisliste und Karte direkt miteinander verknüpft.</li>
+  <li>Klick auf einen Platz in der Liste zoomt auf den Platz und öffnet den Marker.</li>
+  <li>Ausgewählter Platz wird in Liste und Karte hervorgehoben.</li>
+  <li>Ohne Auswahl bzw. über ‘Alle Treffer’ wird die Karte automatisch auf alle aktuellen Treffer angepasst.</li>
+  <li>Auf Smartphones wechselt eine Platzauswahl automatisch zur Kartenansicht.</li>
+</ul>
+
+<h2 id="v22">v22</h2>
+<ul>
+  <li>Länderabfragen robuster für abweichende OSM-Landesrelationen, besonders Niederlande.</li>
+  <li>ISO3166-1:alpha2 wird zusätzlich unterstützt.</li>
+  <li>Europäische Suchgrenzen verhindern falsche globale/Übersee-Suchflächen.</li>
+  <li>Küstensuche hat einen bbox-basierten Fallback und fällt bei 0 Treffern sofort sinnvoll zurück.</li>
+  <li>Niederlande + Meer verwendet den europäischen Niederlande-Bereich.</li>
+</ul>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/4h7zm6hnjy-skizze/Campingfinder-/edit/main/CHANGELOG.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>
