@@ -1,0 +1,189 @@
+/* Campingfinder v31 – vereinfachte Bedienoberfläche */
+:root{
+  --v31-ai:#245c45;
+  --v31-ai-soft:color-mix(in srgb,var(--v31-ai) 10%,var(--surface));
+}
+
+.v31-mode-switch{
+  display:grid;
+  grid-template-columns:1fr 1fr auto;
+  gap:7px;
+  margin:0 0 10px;
+  padding:5px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface-2);
+}
+.v31-mode-switch button{
+  min-height:42px;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:var(--muted);
+  font:inherit;
+  font-weight:800;
+  cursor:pointer;
+  padding:8px 12px;
+}
+.v31-mode-switch button.active{
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:0 2px 10px rgba(15,40,26,.08);
+}
+.v31-mode-switch .v31-filter-open{color:var(--green)}
+
+.v31-mode-ai .premium-search,
+.v31-mode-ai .vehicle-tabs,
+.v31-mode-ai .quick-actions-row{display:none!important}
+.v31-mode-classic .smart-search-box{display:none!important}
+.v31-mode-ai .search-heading span{display:none}
+
+.v31-ai-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px;
+}
+.v31-ai-title{display:grid;gap:2px}
+.v31-ai-title strong{font-size:.96rem}
+.v31-ai-title span{
+  font-size:.73rem;
+  line-height:1.35;
+  color:var(--muted);
+}
+.v31-ai-badge{
+  flex:0 0 auto;
+  padding:5px 8px;
+  border-radius:999px;
+  background:var(--v31-ai-soft);
+  border:1px solid color-mix(in srgb,var(--v31-ai) 22%,var(--line));
+  color:var(--v31-ai);
+  font-size:.66rem;
+  font-weight:850;
+  white-space:nowrap;
+}
+.v31-ai-actions{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+}
+.v31-ai-actions input{width:100%}
+.v31-ai-actions button{min-width:142px}
+.v31-ai-status{
+  margin-top:7px;
+  min-height:1.2em;
+  font-size:.7rem;
+  line-height:1.4;
+  color:var(--muted);
+}
+.v31-ai-status.busy{color:var(--green);font-weight:700}
+.v31-ai-status.error{color:#9a3b2b}
+.v31-ai-progress{
+  height:5px;
+  margin-top:7px;
+  border-radius:999px;
+  overflow:hidden;
+  background:var(--surface-2);
+}
+.v31-ai-progress>span{
+  display:block;
+  width:0;
+  height:100%;
+  background:var(--green);
+  transition:width .2s ease;
+}
+.v31-ai-hint{
+  margin:8px 0 0;
+  font-size:.68rem;
+  line-height:1.4;
+  color:var(--muted);
+}
+.v31-ai-hint strong{color:var(--text)}
+
+.v31-quick-hub{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:8px;
+}
+.v31-quick-hub button{
+  min-height:72px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:3px;
+  padding:8px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:var(--surface);
+  color:var(--text);
+  cursor:pointer;
+  font:inherit;
+}
+.v31-quick-hub button:hover,
+.v31-quick-hub button:focus-visible{
+  border-color:var(--green);
+  outline:none;
+}
+.v31-quick-hub strong{font-size:.78rem}
+.v31-quick-hub small{font-size:.63rem;color:var(--muted);line-height:1.2}
+.v31-quick-icon{font-size:1.25rem;color:var(--green)}
+
+.v31-ui .smart-search-box{padding:12px;border-radius:14px}
+.v31-ui .smart-search-copy{display:none!important}
+.v31-ui #smartSearchBtn{display:none!important}
+.v31-ui .filter-bar{scroll-margin-top:72px}
+.v31-ui .filters:not([open]){padding-bottom:0}
+.v31-ui .filter-chips{
+  max-height:82px;
+  overflow:auto;
+  mask-image:linear-gradient(to bottom,#000 72%,transparent);
+}
+.v31-ui .filter-bar.v31-filter-focus{
+  outline:3px solid color-mix(in srgb,var(--green) 18%,transparent);
+  outline-offset:2px;
+}
+.v31-ui #mapArea,
+.v31-ui .route-card,
+.v31-ui .trip-card,
+.v31-ui .personal-card,
+.v31-ui .helpers-card{scroll-margin-top:72px}
+.v31-ui .mobile-bottom-nav{
+  overflow-x:auto;
+  justify-content:flex-start;
+  scrollbar-width:none;
+}
+.v31-ui .mobile-bottom-nav::-webkit-scrollbar{display:none}
+.v31-ui .mobile-bottom-nav a{min-width:64px;flex:1 0 64px}
+
+@media (max-width:980px){
+  .v31-quick-hub{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:780px){
+  .v31-mode-switch{
+    grid-template-columns:1fr 1fr;
+    position:sticky;
+    top:62px;
+    z-index:40;
+    background:color-mix(in srgb,var(--surface) 94%,transparent);
+    backdrop-filter:blur(12px);
+  }
+  .v31-mode-switch .v31-filter-open{
+    grid-column:1/-1;
+    min-height:38px;
+  }
+  .v31-ai-head{display:grid;grid-template-columns:1fr auto}
+  .v31-ai-title span{font-size:.69rem}
+  .v31-ai-actions{grid-template-columns:1fr}
+  .v31-ai-actions button{
+    width:100%;
+    min-width:0;
+    min-height:44px;
+  }
+  .v31-ui .filter-chips{max-height:72px}
+  .v31-quick-hub{
+    grid-template-columns:repeat(3,1fr);
+    gap:6px;
+  }
+  .v31-quick-hub button{min-height:64px}
+}

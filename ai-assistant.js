@@ -1,0 +1,391 @@
+/* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
+   Die vorhandene v30-Logik bleibt unangetastet.
+   Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
+*/
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const finder = $('finder');
+  const smartBox = document.querySelector('.smart-search-box');
+  const smartInput = $('smartSearchInput');
+  const legacySmartBtn = $('smartSearchBtn');
+  const filtersDetails = document.querySelector('.filters');
+  const filterBar = document.querySelector('.filter-bar');
+
+  if (!finder || !smartBox || !smartInput) return;
+
+  document.body.classList.add('v31-ui','v31-mode-ai');
+
+  /* ---------- Hauptreihenfolge vereinfachen ---------- */
+  const shell = document.querySelector('main.shell');
+  const route = $('routePlanner');
+  const trip = $('tripPlanner');
+  const mapArea = $('mapArea');
+  const stats = document.querySelector('.stats');
+
+  if (shell && route && mapArea) {
+    if (stats) shell.insertBefore(stats, route);
+    shell.insertBefore(mapArea, route);
+  }
+
+  /* ---------- Kompakte Hauptnavigation ---------- */
+  const hero = document.querySelector('.hero');
+  if (hero && !document.querySelector('.v31-quick-hub')) {
+    const hub = document.createElement('section');
+    hub.className = 'v31-quick-hub';
+    hub.setAttribute('aria-label','Campingfinder Schnellzugriff');
+    hub.innerHTML = `
+      <button type="button" data-v31-go="finder"><span class="v31-quick-icon">⌕</span><strong>Finden</strong><small>KI oder klassisch</small></button>
+      <button type="button" data-v31-go="mapArea"><span class="v31-quick-icon">⌖</span><strong>Karte</strong><small>Treffer ansehen</small></button>
+      <button type="button" data-v31-go="routePlanner"><span class="v31-quick-icon">↗</span><strong>Route</strong><small>Stopps planen</small></button>
+      <button type="button" data-v31-go="tripPlanner"><span class="v31-quick-icon">↝</span><strong>Reise</strong><small>Etappen sammeln</small></button>
+      <button type="button" data-v31-go="myPlaces"><span class="v31-quick-icon">☆</span><strong>Meine Plätze</strong><small>Favoriten & Tagebuch</small></button>
+      <button type="button" data-v31-go="helpers"><span class="v31-quick-icon">☷</span><strong>Helfer</strong><small>Budget & Checklisten</small></button>`;
+    hero.insertAdjacentElement('afterend', hub);
+    hub.addEventListener('click', e => {
+      const btn = e.target.closest('[data-v31-go]');
+      if (!btn) return;
+      $(btn.dataset.v31Go)?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  }
+
+  /* ---------- KI / Klassisch Umschalter ---------- */
+  const switcher = document.createElement('div');
+  switcher.className = 'v31-mode-switch';
+  switcher.innerHTML = `
+    <button type="button" class="active" data-v31-mode="ai">KI-Suche</button>
+    <button type="button" data-v31-mode="classic">Klassische Suche</button>
+    <button type="button" class="v31-filter-open">Alle Filter</button>`;
+  finder.insertBefore(switcher, finder.firstChild);
+
+  const oldRow = smartBox.querySelector('.smart-search-row');
+  const oldFeedback = $('smartSearchFeedback');
+  if (oldRow) oldRow.style.display = 'none';
+
+  const aiPanel = document.createElement('div');
+  aiPanel.className = 'v31-ai-panel';
+  aiPanel.innerHTML = `
+    <div class="v31-ai-head">
+      <div class="v31-ai-title">
+        <strong>Beschreibe einfach deinen Campingwunsch</strong>
+        <span>Die KI übersetzt deinen Satz in die vorhandenen Campingfinder-Filter.</span>
+      </div>
+      <span class="v31-ai-badge">lokal · ohne API-Key</span>
+    </div>
+    <div class="v31-ai-actions">
+      <input id="v31AiInput" type="search" autocomplete="off"
+        placeholder="z. B. Frankreich am Meer, familienfreundlich, Pool, Hund erlaubt, Wohnwagen" />
+      <button id="v31AiSearchBtn" class="primary-btn" type="button">Mit KI suchen</button>
+    </div>
+    <div id="v31AiStatus" class="v31-ai-status" aria-live="polite">
+      Bereit. Beim ersten KI-Start wird ein Browser-Modell geladen.
+    </div>
+    <div class="v31-ai-progress" aria-hidden="true"><span id="v31AiProgress"></span></div>
+    <p class="v31-ai-hint"><strong>Sicherer Fallback:</strong> Ist Browser-KI auf dem Gerät nicht verfügbar, verwendet Campingfinder automatisch die vorhandene lokale intelligente Suche.</p>`;
+  smartBox.insertBefore(aiPanel, oldFeedback || null);
+
+  const aiInput = $('v31AiInput');
+  const aiBtn = $('v31AiSearchBtn');
+  const aiStatus = $('v31AiStatus');
+  const aiProgress = $('v31AiProgress');
+
+  function setMode(mode) {
+    const ai = mode !== 'classic';
+    document.body.classList.toggle('v31-mode-ai', ai);
+    document.body.classList.toggle('v31-mode-classic', !ai);
+    switcher.querySelectorAll('[data-v31-mode]').forEach(b =>
+      b.classList.toggle('active', b.dataset.v31Mode === (ai ? 'ai' : 'classic'))
+    );
+    localStorage.setItem('campingfinder:v31SearchMode', ai ? 'ai' : 'classic');
+  }
+
+  switcher.addEventListener('click', e => {
+    const modeBtn = e.target.closest('[data-v31-mode]');
+    if (modeBtn) {
+      setMode(modeBtn.dataset.v31Mode);
+      (modeBtn.dataset.v31Mode === 'ai' ? aiInput : $('placeInput'))?.focus();
+      return;
+    }
+    if (e.target.closest('.v31-filter-open')) {
+      if (filtersDetails) filtersDetails.open = true;
+      filterBar?.classList.add('v31-filter-focus');
+      filterBar?.scrollIntoView({behavior:'smooth',block:'start'});
+      setTimeout(() => filterBar?.classList.remove('v31-filter-focus'), 1200);
+    }
+  });
+
+  setMode(localStorage.getItem('campingfinder:v31SearchMode') || 'ai');
+
+  /* Route bleibt auf Mobil sichtbar – kein Punkt fällt weg. */
+  const mobileNav = document.querySelector('.mobile-bottom-nav');
+  if (mobileNav && !mobileNav.querySelector('a[href="#routePlanner"]')) {
+    const a = document.createElement('a');
+    a.href = '#routePlanner';
+    a.innerHTML = '<span>↗</span><small>Route</small>';
+    const tripLink = mobileNav.querySelector('a[href="#tripPlanner"]');
+    mobileNav.insertBefore(a, tripLink || null);
+  }
+
+  /* ---------- WebLLM ---------- */
+  let webllm = null;
+  let engine = null;
+  let enginePromise = null;
+  let currentModel = '';
+
+  const setStatus = (text, cls='') => {
+    aiStatus.textContent = text;
+    aiStatus.className = 'v31-ai-status' + (cls ? ' ' + cls : '');
+  };
+  const setProgress = pct => {
+    if (aiProgress) aiProgress.style.width = Math.max(0,Math.min(100,pct || 0)) + '%';
+  };
+
+  function modelId(item) {
+    return String(item?.model_id || item?.model || item?.name || '');
+  }
+
+  async function ensureEngine() {
+    if (engine) return engine;
+    if (enginePromise) return enginePromise;
+    if (!('gpu' in navigator)) {
+      throw new Error('WebGPU wird auf diesem Gerät oder Browser nicht angeboten.');
+    }
+
+    enginePromise = (async () => {
+      setStatus('Browser-KI wird geladen …','busy');
+      setProgress(3);
+
+      webllm = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm');
+      const models = webllm?.prebuiltAppConfig?.model_list || [];
+
+      const preferences = [
+        /qwen.*0\.5.*instruct/i,
+        /qwen.*1\.5.*instruct/i,
+        /llama.*1b.*instruct/i,
+        /smollm.*instruct/i,
+        /phi.*mini/i
+      ];
+
+      let chosen = null;
+      for (const pattern of preferences) {
+        chosen = models.find(m => pattern.test(modelId(m)));
+        if (chosen) break;
+      }
+      chosen ||= models.find(m => /instruct/i.test(modelId(m)));
+      if (!chosen) throw new Error('Kein geeignetes kleines Browser-Modell gefunden.');
+
+      currentModel = modelId(chosen);
+      setStatus('KI-Modell wird beim ersten Start eingerichtet …','busy');
+
+      const opts = {
+        initProgressCallback: report => {
+          const p = Number(report?.progress ?? 0);
+          if (Number.isFinite(p)) setProgress(Math.round(p * 100));
+          if (report?.text) {
+            setStatus(String(report.text).replace(/\s+/g,' ').trim(),'busy');
+          }
+        }
+      };
+
+      if (webllm.CreateMLCEngine) {
+        engine = await webllm.CreateMLCEngine(currentModel, opts);
+      } else if (webllm.MLCEngine) {
+        engine = new webllm.MLCEngine(opts);
+        await engine.reload(currentModel);
+      } else {
+        throw new Error('WebLLM konnte nicht initialisiert werden.');
+      }
+
+      setProgress(100);
+      setStatus('KI ist bereit. Die Auswertung erfolgt lokal im Browser.');
+      return engine;
+    })().catch(err => {
+      enginePromise = null;
+      engine = null;
+      throw err;
+    });
+
+    return enginePromise;
+  }
+
+  /* Nur bereits vorhandene Filter-IDs sind erlaubt. */
+  const filterIds = new Set([
+    'adultOnlyFilter','fkkFilter','familyFilter','websiteFilter','dogFilter','feeFilter',
+    'starsFilter','locationFilter','styleFilter','priceFilter','sortSelect',
+    'babyFilter','toddlerFilter','childrenFilter','teenFilter',
+    'electricFilter','waterFilter','toiletFilter','showerFilter','dumpFilter','wifiFilter',
+    'wheelchairFilter','motorhomeFilter','caravanFilter','tentsFilter','cabinsFilter',
+    'greyWaterFilter','chemicalToiletFilter','playgroundFilter','poolFilter','laundryFilter',
+    'privateBathroomFilter','saunaFilter','privateHotTubFilter','privatePoolFilter',
+    'kidsBathFilter','babyBathFilter','rentalCaravanFilter','rentalTentFilter','bungalowFilter',
+    'indoorPoolFilter','heatedPoolFilter','paddlingPoolFilter','waterParkFilter',
+    'kidsClubFilter','teenClubFilter','animationFilter','restaurantFilter','breadServiceFilter',
+    'supermarketFilter','gasExchangeFilter','directBeachFilter','privateBeachFilter',
+    'lakeAccessFilter','fishingFilter','bikeRentalFilter','ebikeChargeFilter','evChargeFilter',
+    'yearRoundFilter','accessibleSanitaryFilter','washingMachineFilter','dryerFilter',
+    'pitchSizeFilter','pitchExposureFilter'
+  ]);
+
+  function parseJsonLoose(text) {
+    const raw = String(text || '').trim();
+    const cleaned = raw
+      .replace(/^```(?:json)?/i,'')
+      .replace(/```$/,'')
+      .trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start < 0 || end <= start) throw new Error('KI-Antwort konnte nicht gelesen werden.');
+    return JSON.parse(cleaned.slice(start,end+1));
+  }
+
+  function resetSearchFilters() {
+    $('resetFiltersBtn')?.click();
+    if ($('placeInput')) $('placeInput').value = '';
+    if ($('typeSelect')) $('typeSelect').value = 'all';
+  }
+
+  function applyPlan(plan, originalText) {
+    resetSearchFilters();
+
+    const country = $('countrySelect');
+    if (plan?.countryCode && country) {
+      const cc = String(plan.countryCode).toUpperCase();
+      if ([...country.options].some(o => o.value === cc)) country.value = cc;
+    }
+
+    if (typeof plan?.place === 'string' && $('placeInput')) {
+      $('placeInput').value = plan.place.trim();
+    }
+
+    if (['all','camp_site','caravan_site'].includes(plan?.siteType) && $('typeSelect')) {
+      $('typeSelect').value = plan.siteType;
+    }
+
+    const filters = plan?.filters && typeof plan.filters === 'object' ? plan.filters : {};
+    for (const [id,value] of Object.entries(filters)) {
+      if (!filterIds.has(id)) continue;
+      const el = $(id);
+      if (!el) continue;
+
+      if (el.type === 'checkbox') {
+        el.checked = Boolean(value);
+      } else {
+        const v = String(value);
+        if ([...el.options].some(o => o.value === v)) el.value = v;
+      }
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+
+    if (Number.isFinite(Number(plan?.radiusKm)) && $('nearRadius')) {
+      const wanted = Number(plan.radiusKm) * 1000;
+      const options = [...$('nearRadius').options].map(o => Number(o.value));
+      const nearest = options.reduce((a,b) =>
+        Math.abs(b-wanted) < Math.abs(a-wanted) ? b : a, options[0]
+      );
+      $('nearRadius').value = String(nearest);
+    }
+
+    smartInput.value = originalText;
+
+    if (Boolean(plan?.nearMe) && $('nearMeBtn')) {
+      $('nearMeBtn').click();
+    } else if (($('countrySelect')?.value || $('placeInput')?.value.trim()) && $('countrySearchBtn')) {
+      $('countrySearchBtn').click();
+    } else {
+      legacySmartBtn?.click();
+    }
+  }
+
+  async function interpretWithAI(text) {
+    const e = await ensureEngine();
+    setStatus('Wunsch wird lokal ausgewertet …','busy');
+
+    const response = await e.chat.completions.create({
+      temperature: 0.1,
+      max_tokens: 650,
+      messages: [
+        {
+          role:'system',
+          content:
+`Du bist der lokale Suchparser einer Camping-Webapp.
+Antworte ausschließlich mit gültigem JSON ohne Markdown.
+
+Schema:
+{"countryCode":"","place":"","siteType":"all","nearMe":false,"radiusKm":25,"filters":{}}
+
+Regeln:
+- countryCode = ISO-2-Code, aber nur wenn ein Land eindeutig genannt ist.
+- place enthält ausschließlich echten Ort, Region oder Campingplatznamen.
+- Wünsche wie Pool, Meer, Familie, Hund oder Wohnwagen dürfen niemals als Ort eingetragen werden.
+- siteType darf nur all, camp_site oder caravan_site sein.
+- filters darf ausschließlich vorhandene Campingfinder-Filter verwenden.
+- Erfinde keine Merkmale.
+- "in meiner Nähe" => nearMe=true.
+- Wohnwagen => caravanFilter=true.
+- Wohnmobil oder Van => motorhomeFilter=true.
+- Zelt => tentsFilter=true.
+- am Meer/Küste => locationFilter="sea".
+- Hund erlaubt => dogFilter="yes"; ohne Hund => dogFilter="no".
+- familienfreundlich => familyFilter=true.
+- Nur Erwachsene/Adults only => adultOnlyFilter=true.
+- Pool => poolFilter=true; Hallenbad => indoorPoolFilter=true; Wasserpark/Rutschen => waterParkFilter=true.
+- Stellplatz => siteType="caravan_site" nur wenn der Nutzer ausdrücklich Wohnmobilstellplatz/Stellplatz sagt.
+- Campingplatz => siteType="camp_site" nur wenn ausdrücklich verlangt.
+- Select-Werte:
+  dogFilter=all/yes/no
+  feeFilter=all/free/paid
+  starsFilter=0/1/2/3/4/5
+  locationFilter=all/sea/inland
+  styleFilter=all/quiet/luxury/glamping
+  priceFilter=all/20/40/60
+  sortSelect=name/stars/type/distance
+  pitchSizeFilter=0/80/100/120/150
+  pitchExposureFilter=all/shaded/sunny`
+        },
+        { role:'user', content:text }
+      ]
+    });
+
+    return parseJsonLoose(response?.choices?.[0]?.message?.content || '');
+  }
+
+  async function runAiSearch() {
+    const text = aiInput.value.trim();
+    if (!text) {
+      aiInput.focus();
+      setStatus('Bitte zuerst einen Campingwunsch eingeben.','error');
+      return;
+    }
+
+    aiBtn.disabled = true;
+    try {
+      const plan = await interpretWithAI(text);
+      applyPlan(plan,text);
+      setStatus('KI-Suche angewendet. Die gesetzten Kriterien kannst du unter „Alle Filter“ kontrollieren.');
+    } catch (err) {
+      console.warn('Campingfinder Browser-KI: Fallback aktiv', err);
+      smartInput.value = text;
+      legacySmartBtn?.click();
+      setProgress(0);
+      setStatus('Browser-KI war nicht verfügbar. Die bestehende lokale intelligente Suche wurde verwendet.','error');
+    } finally {
+      aiBtn.disabled = false;
+    }
+  }
+
+  aiBtn.addEventListener('click', runAiSearch);
+  aiInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runAiSearch();
+    }
+  });
+
+  aiInput.addEventListener('input', () => {
+    smartInput.value = aiInput.value;
+  });
+  smartInput.addEventListener('input', () => {
+    if (!aiInput.matches(':focus')) aiInput.value = smartInput.value;
+  });
+})();
