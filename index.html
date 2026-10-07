@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f5a3c" />
-  <meta name="campingfinder-version" content="33.0.0" />
+  <meta name="campingfinder-version" content="33.1.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Campingfinder" />
@@ -15,13 +15,13 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-  <link rel="stylesheet" href="styles.css?v=33.0.0" />
-  <link rel="stylesheet" href="v31-ui.css?v=33.0.0" />
-  <link rel="stylesheet" href="v33-theme.css?v=33.0.0" />
+  <link rel="stylesheet" href="styles.css?v=33.1.0" />
+  <link rel="stylesheet" href="v31-ui.css?v=33.1.0" />
+  <link rel="stylesheet" href="v33-theme.css?v=33.1.0" />
 
 <script>
 (() => {
-  const CURRENT = '33.0.0';
+  const CURRENT = '33.1.0';
   try {
     localStorage.setItem('campingfinder:html-version', CURRENT);
     if ('serviceWorker' in navigator) {
@@ -37,7 +37,7 @@
 <body class="v31-ui v31-mode-ai v31-look-316 cf-v32 cf-v33">
   <header class="app-header">
     <a class="brand-compact" href="#top" aria-label="Campingfinder Startseite">
-      <img class="v31-brand-full" src="logo-campingfinder.png?v=33.0.0" alt="Campingfinder – Dein Platz. Überall draußen." />
+      <img class="v31-brand-full" src="logo-campingfinder.png?v=33.1.0" alt="Campingfinder – Dein Platz. Überall draußen." />
       <span class="v31-header-copy">
         <strong>Campingfinder</strong>
         <small>Dein Platz. Überall draußen.</small>
@@ -53,7 +53,7 @@
       <a href="#helpers">Helfer</a>
     </nav>
     <div class="header-actions">
-      <span id="v31VersionBadge" class="v31-version-badge">v33.0</span>
+      <span id="v31VersionBadge" class="v31-version-badge">v33.1</span>
       <button id="v31UpdateBtn" class="ghost-btn v31-update-btn" type="button" title="Nach Updates suchen">
         <span class="v31-update-icon">↓</span><span>Update<br>suchen</span>
       </button>
@@ -177,13 +177,13 @@
     </section>
 
     <section class="discovery-row" aria-label="Schnellfilter">
-      <button class="discovery-card" type="button" data-filter-toggle="familyFilter"><span class="chip-icon">♟</span><span>Familie</span></button>
-      <button class="discovery-card" type="button" data-filter-value="locationFilter:sea"><span class="chip-icon">≋</span><span>Meer</span></button>
-      <button class="discovery-card" type="button" data-filter-toggle="poolFilter"><span class="chip-icon">♒</span><span>Pool</span></button>
-      <button class="discovery-card" type="button" data-filter-value="dogFilter:yes"><span class="chip-icon">●</span><span>Hund</span></button>
-      <button class="discovery-card" type="button" data-filter-toggle="caravanFilter"><span class="chip-icon">▣</span><span>Wohnwagen</span></button>
-      <button class="discovery-card" type="button" data-filter-toggle="fkkFilter"><span class="chip-icon">❧</span><span>FKK</span></button>
-      <button class="discovery-card" type="button" data-filter-toggle="adultOnlyFilter"><span class="chip-icon">♟</span><span>Nur Erwachsene</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="familyFilter"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9" r="2.5"/><path d="M3.5 19c.4-4 2.2-6 4.5-6s4.1 2 4.5 6M13 19c.2-3 1.5-4.7 3.5-4.7S19.8 16 20 19"/></svg></span><span>Familie</span></button>
+      <button class="discovery-card" type="button" data-filter-value="locationFilter:sea"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9c2.2 0 2.2 1.8 4.4 1.8S8.6 9 10.8 9s2.2 1.8 4.4 1.8S17.4 9 19.6 9 21.8 10.8 24 10.8M2 14c2.2 0 2.2 1.8 4.4 1.8S8.6 14 10.8 14s2.2 1.8 4.4 1.8S17.4 14 19.6 14 21.8 15.8 24 15.8"/></svg></span><span>Meer</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="poolFilter"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="5" r="2"/><path d="M9 8l3 2 2-3M10 10l-3 4M12 10l3 4M2 17c2 0 2 1.5 4 1.5S8 17 10 17s2 1.5 4 1.5S16 17 18 17s2 1.5 4 1.5"/></svg></span><span>Pool</span></button>
+      <button class="discovery-card" type="button" data-filter-value="dogFilter:yes"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="6" r="2"/><circle cx="17" cy="6" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M12 9c-3.4 0-5.4 3.3-4 6.2 1 2 2.4 3.3 4 3.3s3-1.3 4-3.3c1.4-2.9-.6-6.2-4-6.2z"/></svg></span><span>Hund</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="caravanFilter"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h13a4 4 0 0 1 4 4v6H3z"/><path d="M20 13h2M7 9h5v4H7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span>Wohnwagen</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="fkkFilter"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4C11 4 5 8 5 14c0 3 2 5 5 5 6 0 10-6 10-15z"/><path d="M5 20c2-5 6-9 12-12"/></svg></span><span>FKK</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="adultOnlyFilter"><span class="chip-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="7" r="3"/><circle cx="17" cy="8" r="2.5"/><path d="M3 20c.3-5 2-7 5-7s4.7 2 5 7M13 20c.2-3.7 1.5-5.5 4-5.5S20.8 16.3 21 20"/></svg></span><span>Nur Erwachsene</span></button>
     </section>
 
     <section class="filter-bar card" aria-label="Filter">
@@ -506,8 +506,8 @@
   <template id="emptyTemplate"><div class="empty-state"><div class="empty-icon">△</div><h3>Keine passenden Plätze</h3><p>Ändere Filter oder vergrößere den Kartenbereich.</p></div></template>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-  <script src="qr-local.js?v=33.0.0"></script>
-  <script src="app.js?v=33.0.0"></script>
-  <script src="ai-assistant.js?v=33.0.0"></script>
+  <script src="qr-local.js?v=33.1.0"></script>
+  <script src="app.js?v=33.1.0"></script>
+  <script src="ai-assistant.js?v=33.1.0"></script>
 </body>
 </html>

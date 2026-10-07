@@ -1,6 +1,6 @@
 {
-  "version": "33.0.0",
+  "version": "33.1.0",
   "name": "Campingfinder",
-  "release": "v33.0",
-  "notes": "Komplettes Premium-Redesign nach dem abgestimmten Smartphone-Mockup: großer Markenheader, KI/Klassik-Segmentsuche, Profilkarte, Schnellfilter-Chips, Karten-Vorschau mit Listenumschaltung, kompakte Ergebniskarten und feste 6er-Navigation. Bestehende Funktionen bleiben erhalten."
+  "release": "v33.1",
+  "notes": "iPhone-Grafikfix: Update-Hinweis verkleinert und aus dem Inhalt entfernt, Karten-Umschalter ohne breiten Overlay-Balken, Schnellfilter mit einheitlichen SVG-Icons, Header/Profilkarte neu ausgerichtet und Abstände/Safe-Area verbessert."
 }
