@@ -297,6 +297,85 @@
     }
   }
 
+
+  function currentFamilyProfileForAI() {
+    const p = (typeof state !== 'undefined' && state.familyProfile) ? state.familyProfile : {};
+    const adults = Math.max(1, Number(p.adults || 2));
+    const childAges = Array.isArray(p.childAges)
+      ? p.childAges.map(Number).filter(Number.isFinite)
+      : [];
+    const dog = p.dog === 'yes' ? 'yes' : 'no';
+    const vehicle = ['motorhome','van','caravan','car','tent','all'].includes(p.vehicle)
+      ? p.vehicle
+      : 'all';
+    return { adults, childAges, dog, vehicle };
+  }
+
+  function profileUseEnabled() {
+    const toggle = document.getElementById('v31UseProfile');
+    return toggle ? toggle.checked : true;
+  }
+
+  function familyProfileSummaryForAI() {
+    const p = currentFamilyProfileForAI();
+    const parts = [
+      `${p.adults} Erwachsene`,
+      p.childAges.length ? `Kinder: ${p.childAges.join(', ')} Jahre` : 'keine Kinder',
+      p.dog === 'yes' ? 'mit Hund' : 'ohne Hund'
+    ];
+    const vehicleLabel = {
+      all:'Camping-Art offen',
+      motorhome:'Wohnmobil',
+      van:'Van / Campervan',
+      caravan:'Wohnwagen',
+      car:'Auto',
+      tent:'Zelt'
+    }[p.vehicle] || 'Camping-Art offen';
+    parts.push(vehicleLabel);
+    return parts.join(' · ');
+  }
+
+  function mergeFamilyProfileIntoPlan(plan, originalText='') {
+    if (!profileUseEnabled()) return plan || {};
+    const p = currentFamilyProfileForAI();
+    const merged = {
+      ...(plan || {}),
+      filters: { ...((plan && plan.filters) || {}) }
+    };
+
+    const normalized = String(originalText || '').toLowerCase();
+    const explicitlyWithoutDog = /\b(ohne hund|keine hunde|hunde verboten)\b/i.test(normalized);
+    const explicitlyWithDog = /\b(mit hund|hund erlaubt|hundefreundlich)\b/i.test(normalized);
+
+    if (p.childAges.length) {
+      merged.filters.familyFilter = true;
+      if (p.childAges.some(a => a <= 2)) merged.filters.babyFilter = true;
+      if (p.childAges.some(a => a >= 3 && a <= 5)) merged.filters.toddlerFilter = true;
+      if (p.childAges.some(a => a >= 6 && a <= 12)) merged.filters.childrenFilter = true;
+      if (p.childAges.some(a => a >= 13 && a <= 17)) merged.filters.teenFilter = true;
+      // Ein gespeichertes Profil mit Kindern darf nie versehentlich auf Adults-only gesetzt werden,
+      // außer der Nutzer verlangt es ausdrücklich in diesem Suchsatz.
+      if (!/\b(nur erwachsene|adults only|adult only|18\+)\b/i.test(normalized)) {
+        merged.filters.adultOnlyFilter = false;
+      }
+    }
+
+    if (p.dog === 'yes' && !explicitlyWithoutDog) merged.filters.dogFilter = 'yes';
+    if (explicitlyWithoutDog) merged.filters.dogFilter = 'no';
+    if (explicitlyWithDog) merged.filters.dogFilter = 'yes';
+
+    const explicitVehicle =
+      /\b(wohnwagen|caravan|wohnmobil|motorhome|campervan|van|zelt|tent)\b/i.test(normalized);
+
+    if (!explicitVehicle) {
+      if (p.vehicle === 'motorhome' || p.vehicle === 'van') merged.filters.motorhomeFilter = true;
+      if (p.vehicle === 'caravan') merged.filters.caravanFilter = true;
+      if (p.vehicle === 'tent') merged.filters.tentsFilter = true;
+    }
+
+    return merged;
+  }
+
   async function interpretWithAI(text) {
     const e = await ensureEngine();
     setStatus('Wunsch wird lokal ausgewertet …','busy');
@@ -343,7 +422,11 @@ Regeln:
   pitchSizeFilter=0/80/100/120/150
   pitchExposureFilter=all/shaded/sunny`
         },
-        { role:'user', content:text }
+        { role:'user', content:
+          (profileUseEnabled()
+            ? `Gespeichertes Campingprofil: ${familyProfileSummaryForAI()}\n\nAktueller Suchwunsch: ${text}`
+            : text)
+        }
       ]
     });
 
@@ -360,7 +443,7 @@ Regeln:
 
     aiBtn.disabled = true;
     try {
-      const plan = await interpretWithAI(text);
+      const plan = mergeFamilyProfileIntoPlan(await interpretWithAI(text), text);
       applyPlan(plan,text);
       setStatus('KI-Suche angewendet. Die gesetzten Kriterien kannst du unter „Alle Filter“ kontrollieren.');
     } catch (err) {
@@ -393,7 +476,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '31.2.0';
+  const APP_VERSION = '31.3.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -593,5 +676,95 @@ Regeln:
     const known=localStorage.getItem('campingfinder:updateAvailable');
     if(known) markUpdateAvailable(known);
     setTimeout(()=>checkForUpdates(false),1800);
+  });
+})();
+
+
+/* ---------- v31.3 Profil-Kontext & Homepage-Schnellzugriff ---------- */
+(() => {
+  const aiPanel = document.querySelector('.v31-ai-panel');
+  if (!aiPanel) return;
+
+  const profile = (typeof state !== 'undefined' && state.familyProfile) ? state.familyProfile : {};
+  const adults = Math.max(1, Number(profile.adults || 2));
+  const ages = Array.isArray(profile.childAges) ? profile.childAges.map(Number).filter(Number.isFinite) : [];
+  const vehicleText = {
+    all:'Camping-Art offen',
+    motorhome:'Wohnmobil',
+    van:'Van / Campervan',
+    caravan:'Wohnwagen',
+    car:'Auto',
+    tent:'Zelt'
+  }[profile.vehicle || 'all'] || 'Camping-Art offen';
+
+  const summary = [
+    `${adults} Erwachsene`,
+    ages.length ? `Kinder ${ages.join(', ')} J.` : 'keine Kinder',
+    profile.dog === 'yes' ? 'Hund' : 'ohne Hund',
+    vehicleText
+  ].join(' · ');
+
+  let ctx = document.getElementById('v31ProfileContext');
+  if (!ctx) {
+    ctx = document.createElement('div');
+    ctx.id = 'v31ProfileContext';
+    ctx.className = 'v31-profile-context';
+    ctx.innerHTML = `
+      <div class="v31-profile-context-copy">
+        <strong>Profil wird in der KI-Suche berücksichtigt</strong>
+        <span>${summary}</span>
+      </div>
+      <label class="v31-profile-toggle">
+        <input id="v31UseProfile" type="checkbox" checked />
+        <span>Profil verwenden</span>
+      </label>`;
+    aiPanel.appendChild(ctx);
+  }
+
+  function enhanceOfficialHomepageLinks(root=document) {
+    root.querySelectorAll?.('.result-actions a.mini-btn').forEach(a => {
+      const text = (a.textContent || '').trim().toLowerCase();
+      if (
+        text.includes('original-webseite') ||
+        text.includes('offizielle homepage') ||
+        text.includes('betreiber-webseite')
+      ) {
+        a.classList.add('v31-official-homepage');
+        a.textContent = 'Offizielle Homepage';
+        a.title = 'Homepage des Campingplatzes laut hinterlegtem Platzdatensatz';
+        a.setAttribute('aria-label','Offizielle Homepage des Campingplatzes öffnen');
+      }
+    });
+
+    root.querySelectorAll?.('.detail-actionbar a.mini-btn').forEach(a => {
+      const text = (a.textContent || '').trim().toLowerCase();
+      if (text.includes('original-webseite')) {
+        a.classList.add('v31-official-homepage');
+        a.textContent = 'Offizielle Homepage';
+        a.title = 'Homepage des Campingplatzes laut hinterlegtem Platzdatensatz';
+      }
+    });
+  }
+
+  const results = document.getElementById('results');
+  if (results) {
+    enhanceOfficialHomepageLinks(results);
+    const observer = new MutationObserver(() => enhanceOfficialHomepageLinks(results));
+    observer.observe(results,{childList:true,subtree:true});
+  }
+
+  const detail = document.getElementById('detailContent');
+  if (detail) {
+    const observer = new MutationObserver(() => enhanceOfficialHomepageLinks(detail));
+    observer.observe(detail,{childList:true,subtree:true});
+  }
+
+  // Karte nach Layoutwechseln auf Handy/Tablet neu berechnen, damit keine grauen/leeren Bereiche entstehen.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      try { if (typeof map !== 'undefined') map.invalidateSize(); } catch {}
+    }, 120);
   });
 })();

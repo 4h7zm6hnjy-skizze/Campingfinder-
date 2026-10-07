@@ -1,6 +1,6 @@
 {
-  "version": "31.2.0",
+  "version": "31.3.0",
   "name": "Campingfinder",
-  "release": "v31.2",
-  "notes": "Zuverlässigere Update-Übernahme: automatischer Einmal-Neustart nach Service-Worker-Aktivierung, v31-Dateien im Offline-Cache und robuster Cache-Fallback."
+  "release": "v31.3",
+  "notes": "Handy- und Tablet-Layout optimiert; Profil wird in der KI-Suche berücksichtigt; direkter Zugang zur offiziellen Homepage in KI-Treffern."
 }
