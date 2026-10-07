@@ -393,7 +393,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '31.1.0';
+  const APP_VERSION = '31.2.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>

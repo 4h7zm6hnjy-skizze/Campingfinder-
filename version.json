@@ -1,6 +1,6 @@
 {
-  "version": "31.1.0",
+  "version": "31.2.0",
   "name": "Campingfinder",
-  "release": "v31.1",
-  "notes": "Versionsanzeige am Logo, automatische Update-Erkennung und manuelle Update-Suche."
+  "release": "v31.2",
+  "notes": "Zuverlässigere Update-Übernahme: automatischer Einmal-Neustart nach Service-Worker-Aktivierung, v31-Dateien im Offline-Cache und robuster Cache-Fallback."
 }
