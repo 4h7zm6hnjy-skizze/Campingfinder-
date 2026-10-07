@@ -1,6 +1,6 @@
 {
-  "version": "31.4.0",
+  "version": "31.5.0",
   "name": "Campingfinder",
-  "release": "v31.4",
-  "notes": "Neues modernes Campingfinder-Logo, neues App-/Homescreen-Icon, Favicon und Branding mit 'by Marcel Hentschel'. Optimiert für Handy und Tablet."
+  "release": "v31.5",
+  "notes": "iPhone-/Safari-Fix: v31-Oberfläche, KI-Suche und Responsive-CSS werden jetzt direkt aus index.html geladen statt erst über den Service Worker. Cache-Parameter wurden erneuert."
 }

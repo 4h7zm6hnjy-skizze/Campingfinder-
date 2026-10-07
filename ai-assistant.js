@@ -1,3 +1,6 @@
+/* Campingfinder v31.5 direct-loader guard */
+if (!window.__CAMPINGFINDER_V31_LOADED__) {
+  window.__CAMPINGFINDER_V31_LOADED__ = '31.5.0';
 /* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
    Die vorhandene v30-Logik bleibt unangetastet.
    Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
@@ -476,7 +479,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '31.4.0';
+  const APP_VERSION = '31.5.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -783,3 +786,5 @@ Regeln:
     brand.appendChild(credit);
   }
 })();
+
+} // end Campingfinder v31.5 direct-loader guard

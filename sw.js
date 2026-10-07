@@ -1,13 +1,15 @@
-/* Campingfinder v31.4 service worker
-   Lädt weiterhin die bestehende v30-Kern-App und ergänzt die v31-Oberfläche.
-   v31.3 enthält die verzögerte Update-Übernahme und verbessert Offline-Fallbacks. */
+/* Campingfinder v31.5 service worker
+   v31.5 lädt die Oberfläche direkt aus index.html.
+   Der Service Worker ist nur noch für Cache/Offline/Updates zuständig. */
 
-const CACHE = 'campingfinder-v31-4';
+const CACHE = 'campingfinder-v31-5';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './v31-ui.css',
   './app.js',
+  './ai-assistant.js',
   './qr-local.js',
   './manifest.webmanifest',
   './logo-campingfinder.png',
@@ -16,20 +18,17 @@ const LOCAL_ASSETS = [
   './apple-touch-icon.png',
   './icon-192.png',
   './icon-512.png',
-  './v31-ui.css',
-  './ai-assistant.js',
   './version.json'
 ];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE).then(async cache => {
-      for (const asset of LOCAL_ASSETS) {
-        try { await cache.add(asset); } catch {}
-      }
-    })
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    for (const asset of LOCAL_ASSETS) {
+      try { await cache.add(new Request(asset, { cache:'reload' })); } catch {}
+    }
+  })());
 });
 
 self.addEventListener('activate', event => {
@@ -38,28 +37,24 @@ self.addEventListener('activate', event => {
     await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
 
-    // Wichtig: Nach Aktivierung genau dieser neuen SW-Version werden offene
-    // Campingfinder-Fenster einmal neu geladen. Erst dann werden app.js/styles.css
-    // durch diesen Service Worker erweitert.
-    const windows = await self.clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true
+    // Einmal neu laden, damit eine von v31.4 kontrollierte Seite sofort
+    // auf die direkte v31.5-Einbindung umschaltet.
+    const clients = await self.clients.matchAll({
+      type:'window',
+      includeUncontrolled:true
     });
-
-    await Promise.all(
-      windows.map(async client => {
-        try {
-          const url = new URL(client.url);
-          if (url.origin === self.location.origin) await client.navigate(client.url);
-        } catch {}
-      })
-    );
+    await Promise.all(clients.map(async client => {
+      try {
+        const u = new URL(client.url);
+        if (u.origin === self.location.origin) await client.navigate(client.url);
+      } catch {}
+    }));
   })());
 });
 
-async function networkOrCache(request) {
+async function networkFirst(request) {
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache:'no-store' });
     if (response && response.ok) {
       const cache = await caches.open(CACHE);
       try { await cache.put(request, response.clone()); } catch {}
@@ -67,53 +62,24 @@ async function networkOrCache(request) {
     return response;
   } catch {
     return (
-      await caches.match(request, { ignoreSearch: true }) ||
+      await caches.match(request, { ignoreSearch:true }) ||
       await caches.match('./index.html')
     );
   }
 }
 
-async function fetchAddon(path) {
-  const url = new URL(path, self.location.href);
+async function cacheFirst(request) {
+  const cached = await caches.match(request, { ignoreSearch:true });
+  if (cached) return cached;
   try {
-    const response = await fetch(url, { cache: 'no-store' });
-    if (response.ok) {
+    const response = await fetch(request);
+    if (response && (response.ok || response.type === 'opaque')) {
       const cache = await caches.open(CACHE);
-      try { await cache.put(url, response.clone()); } catch {}
-      return response;
+      try { await cache.put(request, response.clone()); } catch {}
     }
-  } catch {}
-
-  return (
-    await caches.match(url, { ignoreSearch: true }) ||
-    await caches.match(path, { ignoreSearch: true })
-  );
-}
-
-async function mergedTextResponse(request, addonPath, contentType) {
-  const baseResponse = await networkOrCache(request);
-  if (!baseResponse) return new Response('', { status: 503 });
-
-  const addonResponse = await fetchAddon(addonPath);
-  if (!addonResponse) return baseResponse;
-
-  try {
-    const [baseText, addonText] = await Promise.all([
-      baseResponse.clone().text(),
-      addonResponse.clone().text()
-    ]);
-
-    const headers = new Headers(baseResponse.headers);
-    headers.set('content-type', contentType);
-    headers.set('cache-control', 'no-cache');
-
-    return new Response(baseText + '\n\n' + addonText, {
-      status: baseResponse.status,
-      statusText: baseResponse.statusText,
-      headers
-    });
+    return response;
   } catch {
-    return baseResponse;
+    return new Response('', { status:503 });
   }
 }
 
@@ -121,57 +87,26 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-  const cacheableExternal =
+  const externalLeaflet =
     url.hostname === 'unpkg.com' &&
     url.pathname.includes('/leaflet@1.9.4/');
 
-  if (url.origin !== self.location.origin && !cacheableExternal) return;
+  if (url.origin !== self.location.origin && !externalLeaflet) return;
 
-  // Bestehende v30-Dateien werden zur Laufzeit um v31 ergänzt.
-  if (url.origin === self.location.origin && url.pathname.endsWith('/styles.css')) {
-    event.respondWith(
-      mergedTextResponse(event.request, './v31-ui.css', 'text/css; charset=utf-8')
-    );
-    return;
-  }
-
-  if (url.origin === self.location.origin && url.pathname.endsWith('/app.js')) {
-    event.respondWith(
-      mergedTextResponse(event.request, './ai-assistant.js', 'text/javascript; charset=utf-8')
-    );
-    return;
-  }
-
-  const isFreshCode =
+  if (
     url.origin === self.location.origin &&
     (
       event.request.mode === 'navigate' ||
       /\.(?:html|css|js|json)$/.test(url.pathname)
-    );
-
-  if (isFreshCode) {
-    event.respondWith(networkOrCache(event.request));
+    )
+  ) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
-  event.respondWith((async () => {
-    const cached = await caches.match(event.request, { ignoreSearch: true });
-    if (cached) return cached;
-
-    try {
-      const response = await fetch(event.request);
-      if (response.ok || response.type === 'opaque') {
-        const cache = await caches.open(CACHE);
-        try { await cache.put(event.request, response.clone()); } catch {}
-      }
-      return response;
-    } catch {
-      return new Response('', { status: 503 });
-    }
-  })());
+  event.respondWith(cacheFirst(event.request));
 });
 
-/* Manuelle Aktivierung eines wartenden Updates. */
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });

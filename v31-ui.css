@@ -810,3 +810,85 @@ html:has(.v31-ui), body.v31-ui { max-width:100%; overflow-x:hidden; }
     text-overflow:ellipsis;
   }
 }
+
+
+/* =========================================================
+   Campingfinder v31.5 – iPhone/Safari Direct-Load Fix
+   ========================================================= */
+
+/* Safari darf Hauptaktionen nicht ohne sichtbaren Text darstellen. */
+.v31-ui #countrySearchBtn,
+.v31-ui #nearMeBtn,
+.v31-ui #mapSearchBtn,
+.v31-ui #smartSearchBtn,
+.v31-ui .v31-ai-actions button {
+  font-size:.86rem !important;
+  font-weight:800 !important;
+  line-height:1.2 !important;
+  text-indent:0 !important;
+  letter-spacing:normal !important;
+  opacity:1 !important;
+}
+
+.v31-ui #countrySearchBtn,
+.v31-ui .v31-ai-actions .primary-btn {
+  color:#fff !important;
+}
+
+.v31-ui #nearMeBtn,
+.v31-ui #smartSearchBtn {
+  color:var(--green) !important;
+}
+
+/* Eingebettete iOS-Browser: wirklich seitenbreit, keine Überstände. */
+@media (max-width:780px){
+  html, body.v31-ui {
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden !important;
+  }
+
+  .v31-ui .shell,
+  .v31-ui .hero,
+  .v31-ui .hero-search,
+  .v31-ui .filter-bar,
+  .v31-ui #mapArea,
+  .v31-ui .route-card,
+  .v31-ui .trip-card,
+  .v31-ui .personal-card,
+  .v31-ui .helpers-card {
+    width:100% !important;
+    max-width:100% !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
+  }
+
+  .v31-ui .shell {
+    padding-left:6px !important;
+    padding-right:6px !important;
+  }
+
+  .v31-ui input,
+  .v31-ui select,
+  .v31-ui textarea,
+  .v31-ui button,
+  .v31-ui a {
+    min-width:0;
+  }
+
+  .v31-ui .v31-ai-actions input {
+    min-height:48px;
+  }
+
+  .v31-ui .v31-ai-actions button {
+    min-height:48px !important;
+  }
+
+  .v31-ui .result-actions {
+    width:100%;
+  }
+
+  .v31-ui .result-actions > * {
+    overflow-wrap:anywhere;
+  }
+}
