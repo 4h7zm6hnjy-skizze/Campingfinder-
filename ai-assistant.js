@@ -1,6 +1,6 @@
 /* Campingfinder v31.5 direct-loader guard */
 if (!window.__CAMPINGFINDER_V31_LOADED__) {
-  window.__CAMPINGFINDER_V31_LOADED__ = '31.5.0';
+  window.__CAMPINGFINDER_V31_LOADED__ = '31.6.0';
 /* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
    Die vorhandene v30-Logik bleibt unangetastet.
    Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
@@ -479,7 +479,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '31.5.0';
+  const APP_VERSION = '31.6.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -787,4 +787,84 @@ Regeln:
   }
 })();
 
-} // end Campingfinder v31.5 direct-loader guard
+
+/* ---------- v31.6 Design-Angleichung an das Mockup ---------- */
+(() => {
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+  document.body.classList.add('v31-look-316');
+
+  const brand = $('.brand-compact');
+  const brandCopy = $('.brand-compact > span');
+  if (brand && brandCopy) {
+    brandCopy.classList.add('v31-header-copy');
+    if (!brand.querySelector('.v31-brand-full')) {
+      const fullLogo = document.createElement('img');
+      fullLogo.src = 'logo-campingfinder.png';
+      fullLogo.alt = 'Campingfinder';
+      fullLogo.className = 'v31-brand-full';
+      brand.insertBefore(fullLogo, brand.firstChild);
+    }
+  }
+
+  // Map+results unmittelbar unter den Schnellfiltern anzeigen.
+  const discovery = $('.discovery-row');
+  const mapArea = document.getElementById('mapArea');
+  const filterBar = $('.filter-bar');
+  if (discovery && mapArea && filterBar && discovery.nextElementSibling !== mapArea) {
+    discovery.insertAdjacentElement('afterend', mapArea);
+  }
+
+  // Profilkarte visueller gestalten.
+  const profile = document.getElementById('v31ProfileContext');
+  if (profile && !profile.querySelector('.v31-profile-main')) {
+    const copy = $('.v31-profile-context-copy', profile);
+    const toggle = $('.v31-profile-toggle', profile);
+    const main = document.createElement('div');
+    main.className = 'v31-profile-main';
+    const icon = document.createElement('div');
+    icon.className = 'v31-profile-icon';
+    icon.innerHTML = '👨‍👩‍👧‍👦';
+    if (copy) {
+      const title = $('strong', copy);
+      if (title) title.textContent = 'Gespeichertes Profil wird verwendet';
+      main.append(icon, copy);
+      profile.insertBefore(main, profile.firstChild);
+    }
+    if (toggle && !toggle.querySelector('.v31-profile-arrow')) {
+      const arrow = document.createElement('span');
+      arrow.className = 'v31-profile-arrow';
+      arrow.textContent = '›';
+      toggle.appendChild(arrow);
+    }
+  }
+
+  // Schnellfilter kompakter.
+  $$('.discovery-card small').forEach(n => n.remove());
+
+  // Version-Badge wie im Mockup kurz halten.
+  const compactVersionLabel = () => {
+    const badge = document.getElementById('v31VersionBadge');
+    if (badge) {
+      const update = localStorage.getItem('campingfinder:updateAvailable');
+      badge.textContent = update ? `v31.6 · ${update}` : 'v31.6';
+    }
+    const btn = document.getElementById('v31UpdateBtn');
+    if (btn && btn.classList.contains('update-available') && !btn.dataset.v316Styled) {
+      btn.dataset.v316Styled = '1';
+      btn.innerHTML = '<span class="v31-update-icon">↓</span><span>Update<br>verfügbar</span>';
+    }
+  };
+  compactVersionLabel();
+
+  const versionObserver = new MutationObserver(() => compactVersionLabel());
+  versionObserver.observe(document.body, { subtree:true, childList:true, attributes:true });
+
+  // Titel der Ergebnissektion vereinfachen.
+  const resultsHead = document.querySelector('#mapArea .results-card .section-head h2');
+  if (resultsHead) resultsHead.textContent = 'Plätze';
+  const mapHead = document.querySelector('#mapArea .map-card .section-head h2');
+  if (mapHead) mapHead.textContent = 'Karte';
+})();
+
+} // end Campingfinder v31.6 direct-loader guard

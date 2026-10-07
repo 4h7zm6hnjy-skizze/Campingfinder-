@@ -1,8 +1,8 @@
-/* Campingfinder v31.5 service worker
+/* Campingfinder v31.6 service worker
    v31.5 lädt die Oberfläche direkt aus index.html.
    Der Service Worker ist nur noch für Cache/Offline/Updates zuständig. */
 
-const CACHE = 'campingfinder-v31-5';
+const CACHE = 'campingfinder-v31-6';
 const LOCAL_ASSETS = [
   './',
   './index.html',

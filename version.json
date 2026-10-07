@@ -1,6 +1,6 @@
 {
-  "version": "31.5.0",
+  "version": "31.6.0",
   "name": "Campingfinder",
-  "release": "v31.5",
-  "notes": "iPhone-/Safari-Fix: v31-Oberfläche, KI-Suche und Responsive-CSS werden jetzt direkt aus index.html geladen statt erst über den Service Worker. Cache-Parameter wurden erneuert."
+  "release": "v31.6",
+  "notes": "Visuelle Angleichung an das Mockup: großes horizontales Logo, gestapelte Update-Anzeige, pillenförmige KI/Klassik-Umschaltung, kompakteres Profil-Element, Chips, Karte/Ergebnisse direkt unter den Schnellfiltern und modernere Kartenoptik."
 }
