@@ -389,3 +389,209 @@ Regeln:
     if (!aiInput.matches(':focus')) aiInput.value = smartInput.value;
   });
 })();
+
+
+/* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
+(() => {
+  const APP_VERSION = '31.1.0';
+  const VERSION_URL = './version.json';
+
+  const parseVersion = value =>
+    String(value || '0.0.0').replace(/^v/i,'').split('.').map(x => parseInt(x,10) || 0);
+
+  function compareVersions(a,b){
+    const av=parseVersion(a), bv=parseVersion(b);
+    for(let i=0;i<Math.max(av.length,bv.length);i++){
+      const x=av[i]||0, y=bv[i]||0;
+      if(x>y)return 1;
+      if(x<y)return -1;
+    }
+    return 0;
+  }
+
+  const brandText = document.querySelector('.brand-compact span');
+  const headerActions = document.querySelector('.header-actions');
+
+  if (!brandText || !headerActions) return;
+
+  let versionBadge = document.getElementById('v31VersionBadge');
+  if (!versionBadge) {
+    versionBadge = document.createElement('span');
+    versionBadge.id = 'v31VersionBadge';
+    versionBadge.className = 'v31-version-badge';
+    versionBadge.textContent = 'Version ' + APP_VERSION;
+    brandText.appendChild(versionBadge);
+  }
+
+  let updateBtn = document.getElementById('v31UpdateBtn');
+  if (!updateBtn) {
+    updateBtn = document.createElement('button');
+    updateBtn.id = 'v31UpdateBtn';
+    updateBtn.type = 'button';
+    updateBtn.className = 'ghost-btn v31-update-btn';
+    updateBtn.textContent = 'Update suchen';
+    updateBtn.title = 'Nach einer neuen Campingfinder-Version suchen';
+    headerActions.insertBefore(updateBtn, headerActions.firstChild);
+  }
+
+  let statusBox = document.getElementById('v31UpdateStatus');
+  if (!statusBox) {
+    statusBox = document.createElement('div');
+    statusBox.id = 'v31UpdateStatus';
+    statusBox.className = 'v31-update-status';
+    statusBox.hidden = true;
+    statusBox.setAttribute('role','status');
+    statusBox.setAttribute('aria-live','polite');
+    document.body.appendChild(statusBox);
+  }
+
+  function showStatus(title,text,autoHide=5000){
+    statusBox.innerHTML = '<strong>'+title+'</strong><span>'+text+'</span>';
+    statusBox.hidden = false;
+    if(autoHide) {
+      clearTimeout(showStatus.timer);
+      showStatus.timer=setTimeout(()=>{statusBox.hidden=true;},autoHide);
+    }
+  }
+
+  function markUpdateAvailable(remoteVersion){
+    versionBadge.classList.add('update');
+    versionBadge.textContent = 'Version ' + APP_VERSION + ' · Update ' + remoteVersion;
+    updateBtn.classList.add('update-available');
+    if(!updateBtn.querySelector('.v31-update-dot')){
+      const dot=document.createElement('span');
+      dot.className='v31-update-dot';
+      dot.setAttribute('aria-hidden','true');
+      updateBtn.appendChild(dot);
+    }
+    updateBtn.title='Update '+remoteVersion+' verfügbar – antippen';
+    localStorage.setItem('campingfinder:updateAvailable',remoteVersion);
+  }
+
+  function clearUpdateMark(){
+    versionBadge.classList.remove('update');
+    versionBadge.textContent='Version '+APP_VERSION;
+    updateBtn.classList.remove('update-available');
+    updateBtn.querySelector('.v31-update-dot')?.remove();
+    updateBtn.title='Nach einer neuen Campingfinder-Version suchen';
+    localStorage.removeItem('campingfinder:updateAvailable');
+  }
+
+  async function fetchRemoteVersion(){
+    const url = VERSION_URL + '?t=' + Date.now();
+    const res = await fetch(url,{cache:'no-store'});
+    if(!res.ok) throw new Error('Versionsdatei nicht erreichbar');
+    const data = await res.json();
+    return String(data.version || '').trim();
+  }
+
+  async function registerUpdateHooks(){
+    if(!('serviceWorker' in navigator)) return null;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(!reg) return null;
+
+    if(reg.waiting){
+      markUpdateAvailable(localStorage.getItem('campingfinder:updateAvailable') || 'neu');
+    }
+
+    reg.addEventListener('updatefound',()=>{
+      const worker=reg.installing;
+      if(!worker)return;
+      worker.addEventListener('statechange',()=>{
+        if(worker.state==='installed' && navigator.serviceWorker.controller){
+          markUpdateAvailable(localStorage.getItem('campingfinder:updateAvailable') || 'neu');
+          showStatus('Update verfügbar','Eine neue Campingfinder-Version wurde gefunden.',0);
+        }
+      });
+    });
+    return reg;
+  }
+
+  async function checkForUpdates(manual=false){
+    if(manual){
+      updateBtn.disabled=true;
+      showStatus('Update-Suche','Campingfinder prüft auf eine neue Version …',0);
+    }
+
+    let remoteVersion='';
+    let reg=null;
+
+    try{
+      reg=await registerUpdateHooks();
+      await reg?.update();
+    }catch(err){
+      console.warn('Service-Worker-Updateprüfung fehlgeschlagen',err);
+    }
+
+    try{
+      remoteVersion=await fetchRemoteVersion();
+      if(remoteVersion && compareVersions(remoteVersion,APP_VERSION)>0){
+        markUpdateAvailable(remoteVersion);
+        showStatus(
+          'Update verfügbar',
+          'Version '+remoteVersion+' ist verfügbar. Tippe erneut auf „Update suchen“, um die neue Version zu laden.',
+          0
+        );
+        return true;
+      }
+
+      if(reg?.waiting){
+        markUpdateAvailable(remoteVersion || 'neu');
+        showStatus('Update verfügbar','Eine neue Version wartet auf die Installation.',0);
+        return true;
+      }
+
+      clearUpdateMark();
+      if(manual) showStatus('Aktuell','Du verwendest bereits die neueste Version ('+APP_VERSION+').');
+      return false;
+    }catch(err){
+      if(manual){
+        showStatus(
+          'Prüfung nicht möglich',
+          'Die Versionsprüfung konnte gerade nicht abgeschlossen werden. Internetverbindung prüfen und erneut versuchen.'
+        );
+      }
+      return false;
+    }finally{
+      updateBtn.disabled=false;
+    }
+  }
+
+  async function installWaitingUpdate(){
+    try{
+      const reg=await navigator.serviceWorker.getRegistration();
+      if(reg?.waiting){
+        reg.waiting.postMessage({type:'SKIP_WAITING'});
+        showStatus('Update wird installiert','Campingfinder lädt die neue Version …',0);
+        return true;
+      }
+    }catch{}
+    return false;
+  }
+
+  updateBtn.addEventListener('click', async ()=>{
+    const known = localStorage.getItem('campingfinder:updateAvailable');
+    if(known){
+      const installed = await installWaitingUpdate();
+      if(!installed){
+        // Bei skipWaiting-Service-Workern reicht ein harter Reload nach erneuter Prüfung.
+        await checkForUpdates(true);
+        location.reload();
+      }
+      return;
+    }
+    await checkForUpdates(true);
+  });
+
+  navigator.serviceWorker?.addEventListener('controllerchange',()=>{
+    if(sessionStorage.getItem('campingfinder:reloadingForUpdate'))return;
+    sessionStorage.setItem('campingfinder:reloadingForUpdate','1');
+    location.reload();
+  });
+
+  window.addEventListener('load',()=>{
+    const known=localStorage.getItem('campingfinder:updateAvailable');
+    if(known) markUpdateAvailable(known);
+    setTimeout(()=>checkForUpdates(false),1800);
+  });
+})();

@@ -187,3 +187,79 @@
   }
   .v31-quick-hub button{min-height:64px}
 }
+
+
+/* v31.1 – Version & Updateanzeige */
+.v31-version-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  margin-top:2px;
+  width:max-content;
+  padding:2px 7px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:var(--surface-2);
+  color:var(--muted);
+  font-size:.61rem;
+  font-weight:850;
+  letter-spacing:.02em;
+  line-height:1.4;
+}
+.v31-version-badge.update{
+  border-color:#d38a19;
+  background:#fff4dd;
+  color:#8b5707;
+}
+[data-theme="dark"] .v31-version-badge.update{
+  background:rgba(211,138,25,.16);
+  color:#f1bd65;
+}
+.v31-update-btn{
+  position:relative;
+  min-height:38px;
+  padding:0 10px;
+  white-space:nowrap;
+}
+.v31-update-btn.update-available{
+  border-color:#d38a19!important;
+  color:#8b5707!important;
+  background:#fff4dd!important;
+}
+[data-theme="dark"] .v31-update-btn.update-available{
+  background:rgba(211,138,25,.16)!important;
+  color:#f1bd65!important;
+}
+.v31-update-dot{
+  position:absolute;
+  right:3px;
+  top:3px;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#df3f2f;
+  box-shadow:0 0 0 2px var(--surface);
+}
+.v31-update-status{
+  position:fixed;
+  z-index:3500;
+  right:12px;
+  top:72px;
+  max-width:min(360px,calc(100vw - 24px));
+  padding:11px 13px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:0 12px 32px rgba(15,40,26,.18);
+  font-size:.76rem;
+  line-height:1.45;
+}
+.v31-update-status[hidden]{display:none}
+.v31-update-status strong{display:block;margin-bottom:2px}
+@media(max-width:780px){
+  .v31-version-badge{font-size:.58rem;padding:2px 6px}
+  .v31-update-btn{width:38px;padding:0;font-size:0}
+  .v31-update-btn::before{content:"↻";font-size:1.05rem}
+  .v31-update-status{top:64px;right:8px;max-width:calc(100vw - 16px)}
+}

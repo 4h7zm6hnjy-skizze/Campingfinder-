@@ -1,6 +1,6 @@
 /* Campingfinder v31 service worker
    Lädt weiterhin die bestehende v30-App und ergänzt die v31-Oberfläche zur Laufzeit. */
-const CACHE = 'campingfinder-v31';
+const CACHE = 'campingfinder-v31-1';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -13,7 +13,8 @@ const LOCAL_ASSETS = [
   './favicon-32.png',
   './apple-touch-icon.png',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './version.json'
 ];
 
 self.addEventListener('install', event => {
@@ -124,4 +125,10 @@ self.addEventListener('fetch', event => {
       });
     })
   );
+});
+
+
+/* v31.1 – ermöglicht explizites Aktivieren eines wartenden Updates */
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
