@@ -1,8 +1,8 @@
-/* Campingfinder v31.7 service worker
-   v31.5 lädt die Oberfläche direkt aus index.html.
-   Der Service Worker ist nur noch für Cache/Offline/Updates zuständig. */
+/* Campingfinder v32.0 service worker
+   Mobile-/Tablet-Update mit hartem Versions-Busting. */
 
-const CACHE = 'campingfinder-v31-7';
+const APP_VERSION = '32.0.0';
+const CACHE = 'campingfinder-v32-0';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -26,7 +26,14 @@ self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     for (const asset of LOCAL_ASSETS) {
-      try { await cache.add(new Request(asset, { cache:'reload' })); } catch {}
+      try {
+        const url = new URL(asset, self.location.href);
+        if (/\.(?:html|css|js|json)$/.test(url.pathname) || url.pathname.endsWith('/')) {
+          url.searchParams.set('v', APP_VERSION);
+        }
+        const response = await fetch(url.toString(), { cache:'no-store' });
+        if (response && response.ok) await cache.put(asset, response.clone());
+      } catch {}
     }
   })());
 });
@@ -34,27 +41,24 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    await Promise.all(
+      keys.filter(k => k.startsWith('campingfinder-') && k !== CACHE).map(k => caches.delete(k))
+    );
     await self.clients.claim();
-
-    // Einmal neu laden, damit eine von v31.4 kontrollierte Seite sofort
-    // auf die direkte v31.5-Einbindung umschaltet.
-    const clients = await self.clients.matchAll({
-      type:'window',
-      includeUncontrolled:true
-    });
-    await Promise.all(clients.map(async client => {
-      try {
-        const u = new URL(client.url);
-        if (u.origin === self.location.origin) await client.navigate(client.url);
-      } catch {}
-    }));
   })());
 });
 
 async function networkFirst(request) {
   try {
-    const response = await fetch(request, { cache:'no-store' });
+    const u = new URL(request.url);
+    if (u.origin === self.location.origin && (
+      request.mode === 'navigate' ||
+      /\.(?:html|css|js|json)$/.test(u.pathname)
+    )) {
+      u.searchParams.set('v', APP_VERSION);
+    }
+
+    const response = await fetch(u.toString(), { cache:'no-store' });
     if (response && response.ok) {
       const cache = await caches.open(CACHE);
       try { await cache.put(request, response.clone()); } catch {}
@@ -63,7 +67,7 @@ async function networkFirst(request) {
   } catch {
     return (
       await caches.match(request, { ignoreSearch:true }) ||
-      await caches.match('./index.html')
+      await caches.match('./index.html', { ignoreSearch:true })
     );
   }
 }
@@ -72,7 +76,7 @@ async function cacheFirst(request) {
   const cached = await caches.match(request, { ignoreSearch:true });
   if (cached) return cached;
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache:'no-store' });
     if (response && (response.ok || response.type === 'opaque')) {
       const cache = await caches.open(CACHE);
       try { await cache.put(request, response.clone()); } catch {}

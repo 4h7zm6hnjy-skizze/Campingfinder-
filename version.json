@@ -1,6 +1,6 @@
 {
-  "version": "31.7.0",
+  "version": "32.0.0",
   "name": "Campingfinder",
-  "release": "v31.7",
-  "notes": "Statische Sofortdarstellung für iPhone: Logo, Versionsanzeige, Update-Button, KI/Klassik-Umschalter, KI-Suchfeld und Profilkarte stehen direkt in index.html und sind nicht mehr vom verzögerten JavaScript-Start abhängig."
+  "release": "v32.0",
+  "notes": "Komplette responsive Überarbeitung für Smartphone und Tablet: keine seitlichen Überstände, kompakter Header, saubere KI-/Klassik-Suche, Profilkarte, Filter, Karten-/Ergebnisbereiche und feste Bottom-Navigation. Bestehende Campingfinder-Funktionen bleiben erhalten."
 }
