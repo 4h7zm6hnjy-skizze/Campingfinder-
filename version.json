@@ -1,6 +1,6 @@
 {
-  "version": "33.1.0",
+  "version": "34.0.0",
   "name": "Campingfinder",
-  "release": "v33.1",
-  "notes": "iPhone-Grafikfix: Update-Hinweis verkleinert und aus dem Inhalt entfernt, Karten-Umschalter ohne breiten Overlay-Balken, Schnellfilter mit einheitlichen SVG-Icons, Header/Profilkarte neu ausgerichtet und Abstände/Safe-Area verbessert."
+  "release": "v34.0",
+  "notes": "Komplettes modernes Designsystem: vereinheitlichte Karten, Formulare und Buttons, moderner Glas-Header, überarbeitete Suche/Filter/Karte/Treffer, neue Gestaltung für Route, Reise, Meine Plätze und Helfer, verbesserte iPhone-/Tablet-/Desktop-Layouts und Dark Mode."
 }

@@ -1,6 +1,6 @@
-/* Campingfinder v33.1 direct-loader guard */
+/* Campingfinder v34.0 direct-loader guard */
 if (!window.__CAMPINGFINDER_V31_LOADED__) {
-  window.__CAMPINGFINDER_V31_LOADED__ = '33.1.0';
+  window.__CAMPINGFINDER_V31_LOADED__ = '34.0.0';
 /* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
    Die vorhandene v30-Logik bleibt unangetastet.
    Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
@@ -486,7 +486,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '33.1.0';
+  const APP_VERSION = '34.0.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -549,7 +549,7 @@ Regeln:
 
   function markUpdateAvailable(remoteVersion){
     versionBadge.classList.add('update');
-    versionBadge.textContent = 'v33.1 · ' + remoteVersion;
+    versionBadge.textContent = 'v34.0 · ' + remoteVersion;
     updateBtn.classList.add('update-available');
     if(!updateBtn.querySelector('.v31-update-dot')){
       const dot=document.createElement('span');
@@ -563,7 +563,7 @@ Regeln:
 
   function clearUpdateMark(){
     versionBadge.classList.remove('update');
-    versionBadge.textContent='v33.1';
+    versionBadge.textContent='v34.0';
     updateBtn.classList.remove('update-available');
     updateBtn.querySelector('.v31-update-dot')?.remove();
     updateBtn.title='Nach einer neuen Campingfinder-Version suchen';
@@ -857,7 +857,7 @@ Regeln:
     if (badge) {
       let update = '';
       try { update = localStorage.getItem('campingfinder:updateAvailable') || ''; } catch {}
-      const desired = update ? `v33.1 · ${update}` : 'v33.1';
+      const desired = update ? `v34.0 · ${update}` : 'v34.0';
       if (badge.textContent !== desired) badge.textContent = desired;
     }
     const btn = document.getElementById('v31UpdateBtn');
@@ -875,12 +875,12 @@ Regeln:
 })();
 
 
-/* ---------- Campingfinder v33.1 Laufzeit-Helfer ---------- */
+/* ---------- Campingfinder v34.0 Laufzeit-Helfer ---------- */
 (() => {
   'use strict';
   document.body.classList.add('cf-v32');
   const meta = document.querySelector('meta[name="campingfinder-version"]');
-  if (meta) meta.content = '33.1.0';
+  if (meta) meta.content = '34.0.0';
 
   const pinToViewport = () => {
     document.documentElement.style.maxWidth = '100%';
@@ -898,4 +898,4 @@ Regeln:
 })();
 
 
-} // end Campingfinder v33.1 direct-loader guard
+} // end Campingfinder v34.0 direct-loader guard
