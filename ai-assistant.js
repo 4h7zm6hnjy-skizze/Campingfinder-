@@ -476,7 +476,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '31.3.0';
+  const APP_VERSION = '31.4.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -767,4 +767,19 @@ Regeln:
       try { if (typeof map !== 'undefined') map.invalidateSize(); } catch {}
     }, 120);
   });
+})();
+
+
+/* ---------- v31.4 Branding ---------- */
+(() => {
+  const brand = document.querySelector('.brand-compact > span');
+  if (!brand) return;
+
+  if (!document.getElementById('v31BrandCredit')) {
+    const credit = document.createElement('span');
+    credit.id = 'v31BrandCredit';
+    credit.className = 'v31-brand-credit';
+    credit.textContent = 'by Marcel Hentschel';
+    brand.appendChild(credit);
+  }
 })();

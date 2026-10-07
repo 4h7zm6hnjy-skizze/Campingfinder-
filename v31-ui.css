@@ -684,3 +684,129 @@ html:has(.v31-ui), body.v31-ui { max-width:100%; overflow-x:hidden; }
   .v31-ui .result-actions{grid-template-columns:1fr!important}
   .v31-ui .v31-official-homepage{grid-column:auto}
 }
+
+
+/* =========================================================
+   Campingfinder v31.4 – neues Branding / Logo
+   ========================================================= */
+
+.v31-ui .brand-compact{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.v31-ui .brand-compact img{
+  width:48px;
+  height:48px;
+  object-fit:contain;
+  border-radius:14px;
+  flex:0 0 auto;
+}
+.v31-ui .brand-compact > span{
+  display:grid;
+  grid-template-columns:auto auto;
+  grid-template-areas:
+    "name version"
+    "tag tag"
+    "credit credit";
+  align-items:center;
+  column-gap:8px;
+  min-width:0;
+}
+.v31-ui .brand-compact strong{
+  grid-area:name;
+  font-size:1rem;
+  line-height:1.05;
+}
+.v31-ui .brand-compact small{
+  grid-area:tag;
+  line-height:1.2;
+}
+.v31-ui .v31-version-badge{
+  grid-area:version;
+  margin:0;
+}
+.v31-brand-credit{
+  grid-area:credit;
+  display:block;
+  margin-top:1px;
+  font-size:.58rem;
+  line-height:1.15;
+  letter-spacing:.035em;
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+.v31-ui .hero-logo-wrap{
+  display:block;
+  width:100%;
+  max-width:760px;
+}
+.v31-ui .hero-logo{
+  display:block;
+  width:100%;
+  height:auto;
+  max-height:210px;
+  object-fit:contain;
+  object-position:left center;
+}
+
+@media (min-width:781px) and (max-width:1100px){
+  .v31-ui .brand-compact img{
+    width:46px;
+    height:46px;
+  }
+  .v31-ui .hero-logo{
+    max-height:170px;
+  }
+}
+
+@media (max-width:780px){
+  .v31-ui .brand-compact{
+    gap:7px;
+  }
+  .v31-ui .brand-compact img{
+    width:40px;
+    height:40px;
+    border-radius:11px;
+  }
+  .v31-ui .brand-compact > span{
+    grid-template-columns:minmax(0,1fr) auto;
+    column-gap:5px;
+  }
+  .v31-ui .brand-compact strong{
+    font-size:.86rem;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .v31-ui .brand-compact small{
+    font-size:.58rem;
+  }
+  .v31-brand-credit{
+    font-size:.52rem;
+  }
+  .v31-ui .hero-logo-wrap{
+    max-width:100%;
+  }
+  .v31-ui .hero-logo{
+    max-height:145px;
+    object-position:center;
+  }
+}
+
+@media (max-width:390px){
+  .v31-ui .brand-compact img{
+    width:36px;
+    height:36px;
+  }
+  .v31-ui .brand-compact small{
+    display:none!important;
+  }
+  .v31-brand-credit{
+    display:block!important;
+    max-width:150px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+}

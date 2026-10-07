@@ -1,8 +1,8 @@
-/* Campingfinder v31.3 service worker
+/* Campingfinder v31.4 service worker
    Lädt weiterhin die bestehende v30-Kern-App und ergänzt die v31-Oberfläche.
    v31.3 enthält die verzögerte Update-Übernahme und verbessert Offline-Fallbacks. */
 
-const CACHE = 'campingfinder-v31-3';
+const CACHE = 'campingfinder-v31-4';
 const LOCAL_ASSETS = [
   './',
   './index.html',
