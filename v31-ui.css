@@ -1145,3 +1145,88 @@ body.v31-look-316 .mobile-bottom-nav a small{font-size:.86rem; font-weight:700}
   body.v31-look-316 .v31-ai-actions button{min-height:56px!important; font-size:1rem}
   body.v31-look-316 .result-title{font-size:1.3rem}
 }
+
+
+/* =========================================================
+   Campingfinder v31.7 – statische Sofortdarstellung
+   ========================================================= */
+body.v31-look-316 .brand-compact > img:not(.v31-brand-full){display:none!important}
+body.v31-look-316 .header-actions #themeToggle{display:none!important}
+body.v31-look-316 .header-actions .language-control{display:none!important}
+body.v31-look-316 .smart-search-row{display:none!important}
+body.v31-look-316 .v31-ai-panel{display:block!important}
+body.v31-look-316 .v31-profile-context{display:grid!important}
+body.v31-look-316 .v31-mode-switch{display:grid!important}
+
+/* Sobald HTML da ist, soll das gewünschte Layout sichtbar sein – noch vor JS. */
+body.v31-look-316.v31-mode-ai .premium-search,
+body.v31-look-316.v31-mode-ai .vehicle-tabs,
+body.v31-look-316.v31-mode-ai .quick-actions-row{display:none!important}
+
+/* iPhone/ChatGPT-In-App-Browser */
+@media (max-width:780px){
+  body.v31-look-316 .app-header{
+    grid-template-columns:minmax(0,1fr) 96px!important;
+  }
+  body.v31-look-316 .brand-compact{
+    width:100%;
+    min-width:0;
+    overflow:hidden;
+  }
+  body.v31-look-316 .v31-brand-full{
+    width:100%!important;
+    max-width:100%!important;
+    height:auto!important;
+    max-height:64px!important;
+    object-fit:contain!important;
+    object-position:left center!important;
+  }
+  body.v31-look-316 .v31-header-copy{
+    display:none!important;
+  }
+  body.v31-look-316 .header-actions{
+    min-width:96px!important;
+    width:96px;
+    gap:6px!important;
+  }
+  body.v31-look-316 .v31-version-badge{
+    align-self:flex-end;
+    padding:5px 8px;
+    font-size:.66rem;
+  }
+  body.v31-look-316 .v31-update-btn{
+    width:96px!important;
+    min-height:48px!important;
+    padding:7px 9px!important;
+    font-size:.72rem!important;
+    line-height:1.05!important;
+    justify-content:center;
+  }
+  body.v31-look-316 .v31-update-icon{
+    width:26px!important;
+    height:26px!important;
+    font-size:.9rem!important;
+  }
+  body.v31-look-316 .hero{
+    margin-top:2px!important;
+  }
+  body.v31-look-316 .hero-copy{
+    display:none!important;
+  }
+  body.v31-look-316 .hero{
+    grid-template-columns:1fr!important;
+    padding:0!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+  }
+  body.v31-look-316 .v31-mode-switch{
+    margin:0 0 10px!important;
+  }
+  body.v31-look-316 .v31-profile-icon{
+    font-size:1.35rem;
+  }
+  body.v31-look-316 .discovery-row{
+    padding-inline:2px!important;
+  }
+}

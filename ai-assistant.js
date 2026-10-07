@@ -1,6 +1,6 @@
 /* Campingfinder v31.5 direct-loader guard */
 if (!window.__CAMPINGFINDER_V31_LOADED__) {
-  window.__CAMPINGFINDER_V31_LOADED__ = '31.6.0';
+  window.__CAMPINGFINDER_V31_LOADED__ = '31.7.0';
 /* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
    Die vorhandene v30-Logik bleibt unangetastet.
    Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
@@ -54,39 +54,43 @@ if (!window.__CAMPINGFINDER_V31_LOADED__) {
   }
 
   /* ---------- KI / Klassisch Umschalter ---------- */
-  const switcher = document.createElement('div');
-  switcher.className = 'v31-mode-switch';
-  switcher.innerHTML = `
-    <button type="button" class="active" data-v31-mode="ai">KI-Suche</button>
-    <button type="button" data-v31-mode="classic">Klassische Suche</button>
-    <button type="button" class="v31-filter-open">Alle Filter</button>`;
-  finder.insertBefore(switcher, finder.firstChild);
+  let switcher = document.querySelector('.v31-mode-switch');
+  if (!switcher) {
+    switcher = document.createElement('div');
+    switcher.className = 'v31-mode-switch';
+    switcher.innerHTML = `
+      <button type="button" class="active" data-v31-mode="ai">KI-Suche</button>
+      <button type="button" data-v31-mode="classic">Klassische Suche</button>
+      <button type="button" class="v31-filter-open">Alle Filter</button>`;
+    finder.insertBefore(switcher, finder.firstChild);
+  }
 
   const oldRow = smartBox.querySelector('.smart-search-row');
   const oldFeedback = $('smartSearchFeedback');
   if (oldRow) oldRow.style.display = 'none';
 
-  const aiPanel = document.createElement('div');
-  aiPanel.className = 'v31-ai-panel';
-  aiPanel.innerHTML = `
-    <div class="v31-ai-head">
-      <div class="v31-ai-title">
-        <strong>Beschreibe einfach deinen Campingwunsch</strong>
-        <span>Die KI übersetzt deinen Satz in die vorhandenen Campingfinder-Filter.</span>
+  let aiPanel = smartBox.querySelector('.v31-ai-panel');
+  if (!aiPanel) {
+    aiPanel = document.createElement('div');
+    aiPanel.className = 'v31-ai-panel';
+    aiPanel.innerHTML = `
+      <div class="v31-ai-head">
+        <div class="v31-ai-title">
+          <strong>Beschreibe einfach deinen Campingwunsch</strong>
+          <span>Die KI übersetzt deinen Satz in die vorhandenen Campingfinder-Filter.</span>
+        </div>
+        <span class="v31-ai-badge">lokal · ohne API-Key</span>
       </div>
-      <span class="v31-ai-badge">lokal · ohne API-Key</span>
-    </div>
-    <div class="v31-ai-actions">
-      <input id="v31AiInput" type="search" autocomplete="off"
-        placeholder="z. B. Frankreich am Meer, familienfreundlich, Pool, Hund erlaubt, Wohnwagen" />
-      <button id="v31AiSearchBtn" class="primary-btn" type="button">Mit KI suchen</button>
-    </div>
-    <div id="v31AiStatus" class="v31-ai-status" aria-live="polite">
-      Bereit. Beim ersten KI-Start wird ein Browser-Modell geladen.
-    </div>
-    <div class="v31-ai-progress" aria-hidden="true"><span id="v31AiProgress"></span></div>
-    <p class="v31-ai-hint"><strong>Sicherer Fallback:</strong> Ist Browser-KI auf dem Gerät nicht verfügbar, verwendet Campingfinder automatisch die vorhandene lokale intelligente Suche.</p>`;
-  smartBox.insertBefore(aiPanel, oldFeedback || null);
+      <div class="v31-ai-actions">
+        <input id="v31AiInput" type="search" autocomplete="off"
+          placeholder="z. B. Frankreich am Meer, familienfreundlich, Pool, Hund erlaubt" />
+        <button id="v31AiSearchBtn" class="primary-btn" type="button">Mit KI suchen</button>
+      </div>
+      <div id="v31AiStatus" class="v31-ai-status" aria-live="polite">Bereit.</div>
+      <div class="v31-ai-progress" aria-hidden="true"><span id="v31AiProgress"></span></div>
+      <p class="v31-ai-hint"><strong>Fallback:</strong> Falls Browser-KI nicht verfügbar ist, nutzt Campingfinder die lokale intelligente Suche.</p>`;
+    smartBox.insertBefore(aiPanel, oldFeedback || null);
+  }
 
   const aiInput = $('v31AiInput');
   const aiBtn = $('v31AiSearchBtn');
@@ -479,7 +483,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '31.6.0';
+  const APP_VERSION = '31.7.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -714,7 +718,7 @@ Regeln:
     ctx.className = 'v31-profile-context';
     ctx.innerHTML = `
       <div class="v31-profile-context-copy">
-        <strong>Profil wird in der KI-Suche berücksichtigt</strong>
+        <strong>Gespeichertes Profil wird verwendet</strong>
         <span>${summary}</span>
       </div>
       <label class="v31-profile-toggle">
@@ -722,6 +726,11 @@ Regeln:
         <span>Profil verwenden</span>
       </label>`;
     aiPanel.appendChild(ctx);
+  } else {
+    const summaryNode = ctx.querySelector('#v31ProfileSummaryStatic, .v31-profile-context-copy span');
+    if (summaryNode) summaryNode.textContent = summary;
+    const titleNode = ctx.querySelector('.v31-profile-context-copy strong');
+    if (titleNode) titleNode.textContent = 'Gespeichertes Profil wird verwendet';
   }
 
   function enhanceOfficialHomepageLinks(root=document) {
@@ -847,7 +856,7 @@ Regeln:
     const badge = document.getElementById('v31VersionBadge');
     if (badge) {
       const update = localStorage.getItem('campingfinder:updateAvailable');
-      badge.textContent = update ? `v31.6 · ${update}` : 'v31.6';
+      badge.textContent = update ? `v31.7 · ${update}` : 'v31.7';
     }
     const btn = document.getElementById('v31UpdateBtn');
     if (btn && btn.classList.contains('update-available') && !btn.dataset.v316Styled) {
@@ -867,4 +876,4 @@ Regeln:
   if (mapHead) mapHead.textContent = 'Karte';
 })();
 
-} // end Campingfinder v31.6 direct-loader guard
+} // end Campingfinder v31.7 direct-loader guard

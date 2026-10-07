@@ -1,6 +1,6 @@
 {
-  "version": "31.6.0",
+  "version": "31.7.0",
   "name": "Campingfinder",
-  "release": "v31.6",
-  "notes": "Visuelle Angleichung an das Mockup: großes horizontales Logo, gestapelte Update-Anzeige, pillenförmige KI/Klassik-Umschaltung, kompakteres Profil-Element, Chips, Karte/Ergebnisse direkt unter den Schnellfiltern und modernere Kartenoptik."
+  "release": "v31.7",
+  "notes": "Statische Sofortdarstellung für iPhone: Logo, Versionsanzeige, Update-Button, KI/Klassik-Umschalter, KI-Suchfeld und Profilkarte stehen direkt in index.html und sind nicht mehr vom verzögerten JavaScript-Start abhängig."
 }

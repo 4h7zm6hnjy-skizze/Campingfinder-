@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f5a3c" />
-  <meta name="campingfinder-version" content="31.6.0" />
+  <meta name="campingfinder-version" content="31.7.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Campingfinder" />
@@ -15,14 +15,18 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-  <link rel="stylesheet" href="styles.css?v=31.6.0" />
-  <link rel="stylesheet" href="v31-ui.css?v=31.6.0" />
+  <link rel="stylesheet" href="styles.css?v=31.7.0" />
+  <link rel="stylesheet" href="v31-ui.css?v=31.7.0" />
 </head>
-<body>
+<body class="v31-ui v31-mode-ai v31-look-316">
   <header class="app-header">
     <a class="brand-compact" href="#top" aria-label="Campingfinder Startseite">
-      <img src="icon-192.png" alt="" />
-      <span><strong>Campingfinder</strong><small>Ganz Europa gehört dir</small></span>
+      <img class="v31-brand-full" src="logo-campingfinder.png?v=31.7.0" alt="Campingfinder – Dein Platz. Überall draußen." />
+      <span class="v31-header-copy">
+        <strong>Campingfinder</strong>
+        <small>Dein Platz. Überall draußen.</small>
+        <span id="v31BrandCredit" class="v31-brand-credit">by Marcel Hentschel</span>
+      </span>
     </a>
     <nav class="desktop-nav" aria-label="Hauptnavigation">
       <a href="#finder">Entdecken</a>
@@ -33,6 +37,10 @@
       <a href="#helpers">Helfer</a>
     </nav>
     <div class="header-actions">
+      <span id="v31VersionBadge" class="v31-version-badge">v31.7</span>
+      <button id="v31UpdateBtn" class="ghost-btn v31-update-btn" type="button" title="Nach Updates suchen">
+        <span class="v31-update-icon">↓</span><span>Update<br>suchen</span>
+      </button>
       <label class="language-control" title="Sprache">
         <span aria-hidden="true">DE</span>
         <select id="languageSelect" aria-label="Sprache">
@@ -63,6 +71,11 @@
       </div>
 
       <section id="finder" class="hero-search" aria-label="Campingplatz-Suche">
+        <div class="v31-mode-switch">
+          <button type="button" class="active" data-v31-mode="ai">KI-Suche</button>
+          <button type="button" data-v31-mode="classic">Klassische Suche</button>
+          <button type="button" class="v31-filter-open">Alle Filter</button>
+        </div>
         <div class="search-heading"><strong>Wohin möchtest du?</strong><span>Suche nach Land, Ort, Region oder Platzname.</span></div>
         <div class="search-grid premium-search">
           <label><span data-i18n="country">Land</span><select id="countrySelect"></select></label>
@@ -74,10 +87,49 @@
         <div class="smart-search-box" aria-label="Intelligente Filtersuche">
           <div class="smart-search-copy">
             <strong>Intelligente Suche</strong>
-            <span>Beschreibe deinen Wunsch in einem Satz – ein Ort ist optional. Die App setzt Land und passende Filter lokal auf deinem Gerät.</span>
+            <span>Beschreibe deinen Wunsch in einem Satz – ein Ort ist optional.</span>
           </div>
-          <div class="smart-search-row">
-            <input id="smartSearchInput" type="search" aria-label="Intelligente Suche" placeholder="z. B. Frankreich mit Pool und Rutsche" autocomplete="off" />
+
+          <div class="v31-ai-panel">
+            <div class="v31-ai-head">
+              <div class="v31-ai-title">
+                <strong>Beschreibe einfach deinen Campingwunsch</strong>
+                <span>Die KI übersetzt deinen Satz in vorhandene Campingfinder-Filter.</span>
+              </div>
+              <span class="v31-ai-badge">lokal · ohne API-Key</span>
+            </div>
+
+            <div class="v31-ai-actions">
+              <input id="v31AiInput" type="search" autocomplete="off"
+                placeholder="z. B. Frankreich am Meer, familienfreundlich, Pool, Hund erlaubt" />
+              <button id="v31AiSearchBtn" class="primary-btn" type="button">Mit KI suchen</button>
+            </div>
+
+            <div id="v31AiStatus" class="v31-ai-status" aria-live="polite">
+              Bereit. Beim ersten KI-Start wird das Browser-Modell geladen.
+            </div>
+            <div class="v31-ai-progress" aria-hidden="true"><span id="v31AiProgress"></span></div>
+            <p class="v31-ai-hint"><strong>Fallback:</strong> Falls Browser-KI nicht verfügbar ist, nutzt Campingfinder automatisch die lokale intelligente Suche.</p>
+
+            <div id="v31ProfileContext" class="v31-profile-context">
+              <div class="v31-profile-main">
+                <div class="v31-profile-icon">👨‍👩‍👧‍👦</div>
+                <div class="v31-profile-context-copy">
+                  <strong>Gespeichertes Profil wird verwendet</strong>
+                  <span id="v31ProfileSummaryStatic">2 Erwachsene · Profil wird geladen …</span>
+                </div>
+              </div>
+              <label class="v31-profile-toggle">
+                <input id="v31UseProfile" type="checkbox" checked />
+                <span>Profil verwenden</span>
+                <span class="v31-profile-arrow">›</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="smart-search-row" aria-hidden="true">
+            <input id="smartSearchInput" type="search" aria-label="Intelligente Suche"
+              placeholder="z. B. Frankreich mit Pool und Rutsche" autocomplete="off" />
             <button id="smartSearchBtn" class="secondary-btn" type="button">Auswerten &amp; suchen</button>
           </div>
           <div id="smartSearchFeedback" class="smart-search-feedback" aria-live="polite"></div>
@@ -436,8 +488,8 @@
   <template id="emptyTemplate"><div class="empty-state"><div class="empty-icon">△</div><h3>Keine passenden Plätze</h3><p>Ändere Filter oder vergrößere den Kartenbereich.</p></div></template>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-  <script src="qr-local.js?v=31.6.0"></script>
-  <script src="app.js?v=31.6.0"></script>
-  <script src="ai-assistant.js?v=31.6.0"></script>
+  <script src="qr-local.js?v=31.7.0"></script>
+  <script src="app.js?v=31.7.0"></script>
+  <script src="ai-assistant.js?v=31.7.0"></script>
 </body>
 </html>
