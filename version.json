@@ -1,6 +1,6 @@
 {
-  "version": "32.0.0",
+  "version": "32.1.0",
   "name": "Campingfinder",
-  "release": "v32.0",
-  "notes": "Komplette responsive Überarbeitung für Smartphone und Tablet: keine seitlichen Überstände, kompakter Header, saubere KI-/Klassik-Suche, Profilkarte, Filter, Karten-/Ergebnisbereiche und feste Bottom-Navigation. Bestehende Campingfinder-Funktionen bleiben erhalten."
+  "release": "v32.1",
+  "notes": "Versionsfix: v32.0 enthielt in index.html noch feste v31.7-Verweise. Alle sichtbaren Versionsangaben und Cache-Busting-Parameter wurden auf v32.1.0 vereinheitlicht."
 }

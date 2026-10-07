@@ -1,6 +1,6 @@
-/* Campingfinder v32.0 direct-loader guard */
+/* Campingfinder v32.1 direct-loader guard */
 if (!window.__CAMPINGFINDER_V31_LOADED__) {
-  window.__CAMPINGFINDER_V31_LOADED__ = '32.0.0';
+  window.__CAMPINGFINDER_V31_LOADED__ = '32.1.0';
 /* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
    Die vorhandene v30-Logik bleibt unangetastet.
    Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
@@ -481,7 +481,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '32.0.0';
+  const APP_VERSION = '32.1.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -848,7 +848,7 @@ Regeln:
     const badge = document.getElementById('v31VersionBadge');
     if (badge) {
       const update = localStorage.getItem('campingfinder:updateAvailable');
-      badge.textContent = update ? `v32.0 · ${update}` : 'v32.0';
+      badge.textContent = update ? `v32.1 · ${update}` : 'v32.1';
     }
     const btn = document.getElementById('v31UpdateBtn');
     if (btn && btn.classList.contains('update-available') && !btn.dataset.v316Styled) {
@@ -868,13 +868,13 @@ Regeln:
 })();
 
 
-/* ---------- Campingfinder v32.0 Responsive Fix ---------- */
+/* ---------- Campingfinder v32.1 Responsive Fix ---------- */
 (() => {
   'use strict';
   document.body.classList.add('cf-v32');
 
   const meta = document.querySelector('meta[name="campingfinder-version"]');
-  if (meta) meta.content = '32.0.0';
+  if (meta) meta.content = '32.1.0';
 
   const style = document.createElement('style');
   style.id = 'cf-v32-responsive-style';
@@ -1059,4 +1059,4 @@ body.cf-v32 .v31-update-status{position:fixed!important;top:calc(70px + env(safe
 })();
 
 
-} // end Campingfinder v32.0 direct-loader guard
+} // end Campingfinder v32.1 direct-loader guard
