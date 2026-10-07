@@ -2062,13 +2062,13 @@ function renderResults() {
           ${placeMatchHtml(place)}
           ${cardWeather(place)}
           <div class="result-trust"><span class="trust-pill quality-${quality.level}">${quality.label} · ${quality.percent}% Datenfelder</span><span class="trust-pill ${place.website ? 'good' : ''}">${place.website ? '✓ Betreiber-Webseite hinterlegt' : 'Webseite nicht hinterlegt'}</span>${place.osmUpdated ? `<span class="trust-pill">OSM-Datenstand vorhanden</span>` : ''}</div>
-          <div class="result-actions">
-            <button class="mini-btn" data-action="details" data-key="${escapeHtml(place.key)}">Details</button>
-            ${place.website ? `<a class="mini-btn" href="${escapeHtml(place.website)}" target="_blank" rel="noopener noreferrer">Original-Webseite ↗</a>` : ''}
-            <button class="mini-btn secondary" data-action="map" data-key="${escapeHtml(place.key)}">Karte</button>
-            <button class="mini-btn secondary ${state.trip.stages.some(s => s.key === place.key) ? 'active' : ''}" data-action="trip" data-key="${escapeHtml(place.key)}">${state.trip.stages.some(s => s.key === place.key) ? '✓ In Reise' : '+ Reise'}</button>
-            <button class="compare-toggle ${selected ? 'active' : ''}" data-action="compare" data-key="${escapeHtml(place.key)}">${selected ? '✓ Im Vergleich' : '+ Vergleichen'}</button>
-          </div>
+        </div>
+        <div class="result-actions">
+          <button class="mini-btn" data-action="details" data-key="${escapeHtml(place.key)}">Details</button>
+          <button class="mini-btn secondary" data-action="map" data-key="${escapeHtml(place.key)}">Karte</button>
+          <button class="mini-btn secondary ${state.trip.stages.some(s => s.key === place.key) ? 'active' : ''}" data-action="trip" data-key="${escapeHtml(place.key)}">${state.trip.stages.some(s => s.key === place.key) ? '✓ In Reise' : '+ Reise'}</button>
+          ${place.website ? `<a class="mini-btn v33-homepage" href="${escapeHtml(place.website)}" target="_blank" rel="noopener noreferrer">Offizielle Homepage ↗</a>` : ''}
+          <button class="compare-toggle ${selected ? 'active' : ''}" data-action="compare" data-key="${escapeHtml(place.key)}">${selected ? '✓ Im Vergleich' : '+ Vergleichen'}</button>
         </div>
       </div>
     </article>`;
@@ -3345,9 +3345,16 @@ $('legalDialog')?.addEventListener('click',e=>{if(e.target===$('legalDialog'))$(
 document.querySelectorAll('.mobile-view-toggle [data-mobile-view]').forEach(btn => btn.addEventListener('click', () => {
   const area=$('mapArea'); if(!area)return;
   const mode=btn.dataset.mobileView || 'list';
-  area.dataset.mobileView=mode;
-  area.querySelectorAll('.mobile-view-toggle button').forEach(b=>b.classList.toggle('active',b.dataset.mobileView===mode));
-  if(mode==='map') setTimeout(()=>map.invalidateSize(),80);
+  if (mode === 'list') {
+    area.dataset.mobileView='both';
+    area.querySelectorAll('.mobile-view-toggle button').forEach(b=>b.classList.toggle('active',b.dataset.mobileView==='list'));
+    area.querySelector('.results-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+    setTimeout(()=>map.invalidateSize(),80);
+    return;
+  }
+  area.dataset.mobileView='map';
+  area.querySelectorAll('.mobile-view-toggle button').forEach(b=>b.classList.toggle('active',b.dataset.mobileView==='map'));
+  setTimeout(()=>map.invalidateSize(),80);
 }));
 
 window.addEventListener('beforeinstallprompt', e => {

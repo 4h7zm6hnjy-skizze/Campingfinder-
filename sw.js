@@ -1,13 +1,14 @@
-/* Campingfinder v32.2 service worker
+/* Campingfinder v33.0 service worker
    Mobile-/Tablet-Update mit hartem Versions-Busting. */
 
-const APP_VERSION = '32.2.0';
-const CACHE = 'campingfinder-v32-2';
+const APP_VERSION = '33.0.0';
+const CACHE = 'campingfinder-v33-0';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './styles.css',
   './v31-ui.css',
+  './v33-theme.css',
   './app.js',
   './ai-assistant.js',
   './qr-local.js',

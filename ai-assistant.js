@@ -1,6 +1,6 @@
-/* Campingfinder v32.2 direct-loader guard */
+/* Campingfinder v33.0 direct-loader guard */
 if (!window.__CAMPINGFINDER_V31_LOADED__) {
-  window.__CAMPINGFINDER_V31_LOADED__ = '32.2.0';
+  window.__CAMPINGFINDER_V31_LOADED__ = '33.0.0';
 /* Campingfinder v31 – lokale Browser-KI + vereinfachte Bedienstruktur
    Die vorhandene v30-Logik bleibt unangetastet.
    Keine API-Schlüssel. WebLLM wird erst geladen, wenn der Nutzer die KI-Suche startet.
@@ -27,9 +27,14 @@ if (!window.__CAMPINGFINDER_V31_LOADED__) {
   const mapArea = $('mapArea');
   const stats = document.querySelector('.stats');
 
-  if (shell && route && mapArea) {
-    if (stats) shell.insertBefore(stats, route);
-    shell.insertBefore(mapArea, route);
+  if (shell && mapArea) {
+    const discoveryRow = document.querySelector('.discovery-row');
+    if (discoveryRow) {
+      discoveryRow.insertAdjacentElement('afterend', mapArea);
+    } else if (route) {
+      shell.insertBefore(mapArea, route);
+    }
+    if (stats && route) shell.insertBefore(stats, route);
   }
 
   /* ---------- Kompakte Hauptnavigation ---------- */
@@ -481,7 +486,7 @@ Regeln:
 
 /* ---------- v31.1 Versionsanzeige & Update-Prüfung ---------- */
 (() => {
-  const APP_VERSION = '32.2.0';
+  const APP_VERSION = '33.0.0';
   const VERSION_URL = './version.json';
 
   const parseVersion = value =>
@@ -544,7 +549,7 @@ Regeln:
 
   function markUpdateAvailable(remoteVersion){
     versionBadge.classList.add('update');
-    versionBadge.textContent = 'v32.2 · ' + remoteVersion;
+    versionBadge.textContent = 'v33.0 · ' + remoteVersion;
     updateBtn.classList.add('update-available');
     if(!updateBtn.querySelector('.v31-update-dot')){
       const dot=document.createElement('span');
@@ -558,7 +563,7 @@ Regeln:
 
   function clearUpdateMark(){
     versionBadge.classList.remove('update');
-    versionBadge.textContent='v32.2';
+    versionBadge.textContent='v33.0';
     updateBtn.classList.remove('update-available');
     updateBtn.querySelector('.v31-update-dot')?.remove();
     updateBtn.title='Nach einer neuen Campingfinder-Version suchen';
@@ -851,7 +856,7 @@ Regeln:
     if (badge) {
       let update = '';
       try { update = localStorage.getItem('campingfinder:updateAvailable') || ''; } catch {}
-      const desired = update ? `v32.2 · ${update}` : 'v32.2';
+      const desired = update ? `v33.0 · ${update}` : 'v33.0';
       if (badge.textContent !== desired) badge.textContent = desired;
     }
     const btn = document.getElementById('v31UpdateBtn');
@@ -869,12 +874,12 @@ Regeln:
 })();
 
 
-/* ---------- Campingfinder v32.2 Laufzeit-Helfer ---------- */
+/* ---------- Campingfinder v33.0 Laufzeit-Helfer ---------- */
 (() => {
   'use strict';
   document.body.classList.add('cf-v32');
   const meta = document.querySelector('meta[name="campingfinder-version"]');
-  if (meta) meta.content = '32.2.0';
+  if (meta) meta.content = '33.0.0';
 
   const pinToViewport = () => {
     document.documentElement.style.maxWidth = '100%';
@@ -892,4 +897,4 @@ Regeln:
 })();
 
 
-} // end Campingfinder v32.2 direct-loader guard
+} // end Campingfinder v33.0 direct-loader guard

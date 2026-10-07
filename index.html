@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f5a3c" />
-  <meta name="campingfinder-version" content="32.2.0" />
+  <meta name="campingfinder-version" content="33.0.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Campingfinder" />
@@ -15,12 +15,13 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-  <link rel="stylesheet" href="styles.css?v=32.2.0" />
-  <link rel="stylesheet" href="v31-ui.css?v=32.2.0" />
+  <link rel="stylesheet" href="styles.css?v=33.0.0" />
+  <link rel="stylesheet" href="v31-ui.css?v=33.0.0" />
+  <link rel="stylesheet" href="v33-theme.css?v=33.0.0" />
 
 <script>
 (() => {
-  const CURRENT = '32.2.0';
+  const CURRENT = '33.0.0';
   try {
     localStorage.setItem('campingfinder:html-version', CURRENT);
     if ('serviceWorker' in navigator) {
@@ -33,10 +34,10 @@
 </script>
 
 </head>
-<body class="v31-ui v31-mode-ai v31-look-316 cf-v32">
+<body class="v31-ui v31-mode-ai v31-look-316 cf-v32 cf-v33">
   <header class="app-header">
     <a class="brand-compact" href="#top" aria-label="Campingfinder Startseite">
-      <img class="v31-brand-full" src="logo-campingfinder.png?v=32.2.0" alt="Campingfinder – Dein Platz. Überall draußen." />
+      <img class="v31-brand-full" src="logo-campingfinder.png?v=33.0.0" alt="Campingfinder – Dein Platz. Überall draußen." />
       <span class="v31-header-copy">
         <strong>Campingfinder</strong>
         <small>Dein Platz. Überall draußen.</small>
@@ -52,7 +53,7 @@
       <a href="#helpers">Helfer</a>
     </nav>
     <div class="header-actions">
-      <span id="v31VersionBadge" class="v31-version-badge">v32.2</span>
+      <span id="v31VersionBadge" class="v31-version-badge">v33.0</span>
       <button id="v31UpdateBtn" class="ghost-btn v31-update-btn" type="button" title="Nach Updates suchen">
         <span class="v31-update-icon">↓</span><span>Update<br>suchen</span>
       </button>
@@ -176,12 +177,13 @@
     </section>
 
     <section class="discovery-row" aria-label="Schnellfilter">
-      <button class="discovery-card" type="button" data-filter-toggle="familyFilter"><span>Familie</span><small>Spiel &amp; Urlaub</small></button>
-      <button class="discovery-card" type="button" data-filter-value="dogFilter:yes"><span>Mit Hund</span><small>Hundefreundlich</small></button>
-      <button class="discovery-card" type="button" data-filter-value="locationFilter:sea"><span>Am Meer</span><small>Küste &amp; Strand</small></button>
-      <button class="discovery-card" type="button" data-filter-toggle="adultOnlyFilter"><span>Adults only</span><small>Nur Erwachsene</small></button>
-      <button class="discovery-card" type="button" data-site-type="caravan_site"><span>Stellplätze</span><small>Wohnmobil &amp; Van</small></button>
-      <button class="discovery-card" type="button" data-style-value="quiet"><span>Ruhig</span><small>Klein &amp; entspannt</small></button>
+      <button class="discovery-card" type="button" data-filter-toggle="familyFilter"><span class="chip-icon">♟</span><span>Familie</span></button>
+      <button class="discovery-card" type="button" data-filter-value="locationFilter:sea"><span class="chip-icon">≋</span><span>Meer</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="poolFilter"><span class="chip-icon">♒</span><span>Pool</span></button>
+      <button class="discovery-card" type="button" data-filter-value="dogFilter:yes"><span class="chip-icon">●</span><span>Hund</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="caravanFilter"><span class="chip-icon">▣</span><span>Wohnwagen</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="fkkFilter"><span class="chip-icon">❧</span><span>FKK</span></button>
+      <button class="discovery-card" type="button" data-filter-toggle="adultOnlyFilter"><span class="chip-icon">♟</span><span>Nur Erwachsene</span></button>
     </section>
 
     <section class="filter-bar card" aria-label="Filter">
@@ -372,14 +374,14 @@
       <div class="stat-card"><span class="stat-icon">☆</span><div><strong id="favoriteCount">0</strong><span>Favoriten</span></div></div>
     </section>
 
-    <section id="mapArea" class="content-grid" data-mobile-view="list">
-      <div class="mobile-view-toggle" role="group" aria-label="Ansicht wählen">
-        <button type="button" class="active" data-mobile-view="list">Liste</button>
-        <button type="button" data-mobile-view="map">Karte</button>
-      </div>
+    <section id="mapArea" class="content-grid" data-mobile-view="both">
       <div class="map-card card">
         <div class="section-head"><div><span class="section-kicker">KARTE</span><h2>Europa entdecken</h2><p>Verschieben und anschließend den sichtbaren Kartenbereich durchsuchen.</p></div><div class="map-actions"><select id="mapLayerSelect" aria-label="Kartenstil"><option value="osm">Karte</option><option value="topo">Topografisch</option></select><button id="fitResultsBtn" class="ghost-btn">Alle Treffer</button></div></div>
         <div id="map" aria-label="Karte mit Campingplätzen"></div>
+        <div class="mobile-view-toggle" role="group" aria-label="Ansicht wählen">
+          <button type="button" data-mobile-view="map"><span aria-hidden="true">⌑</span> Karte vergrößern</button>
+          <button type="button" class="active" data-mobile-view="list"><span aria-hidden="true">☷</span> Liste</button>
+        </div>
       </div>
       <div class="results-card card">
         <div class="section-head sticky-head"><div><span class="section-kicker">ERGEBNISSE</span><h2>Plätze</h2><p id="statusText">Wähle ein Land, einen Kartenbereich, deine Nähe oder eine Route.</p></div><button id="favoritesOnlyBtn" class="ghost-btn" aria-pressed="false">☆ Favoriten</button></div>
@@ -485,12 +487,12 @@
   </div>
 
   <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
-    <a href="#finder"><span>⌕</span><small>Finden</small></a>
-    <a href="#mapArea"><span>⌖</span><small>Karte</small></a>
-    <a href="#routePlanner"><span>↗</span><small>Route</small></a>
-    <a href="#tripPlanner"><span>↝</span><small>Reise</small></a>
-    <a href="#myPlaces"><span>☆</span><small>Meine Plätze</small></a>
-    <a href="#helpers"><span>☷</span><small>Helfer</small></a>
+    <a class="active" href="#finder"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><small>Finden</small></a>
+    <a href="#mapArea"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5-2 8 3 5-2v13l-5 2-8-3-5 2z"/><path d="M8 4v13M16 7v13"/></svg></span><small>Karte</small></a>
+    <a href="#routePlanner"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18c5 0 2-8 7-8h1"/></svg></span><small>Route</small></a>
+    <a href="#tripPlanner"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="14" height="13" rx="2"/><path d="M9 7V5h6v2M8 11h8"/></svg></span><small>Reise</small></a>
+    <a href="#myPlaces"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.3A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg></span><small>Meine Plätze</small></a>
+    <a href="#helpers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v5M12 15v5M4 12h5M15 12h5"/></svg></span><small>Helfer</small></a>
   </nav>
 
   <dialog id="detailDialog"><div class="dialog-shell"><button id="closeDialogBtn" class="dialog-close" aria-label="Schließen">×</button><div id="detailContent"></div></div></dialog>
@@ -504,8 +506,8 @@
   <template id="emptyTemplate"><div class="empty-state"><div class="empty-icon">△</div><h3>Keine passenden Plätze</h3><p>Ändere Filter oder vergrößere den Kartenbereich.</p></div></template>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-  <script src="qr-local.js?v=32.2.0"></script>
-  <script src="app.js?v=32.2.0"></script>
-  <script src="ai-assistant.js?v=32.2.0"></script>
+  <script src="qr-local.js?v=33.0.0"></script>
+  <script src="app.js?v=33.0.0"></script>
+  <script src="ai-assistant.js?v=33.0.0"></script>
 </body>
 </html>

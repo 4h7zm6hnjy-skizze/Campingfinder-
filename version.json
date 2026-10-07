@@ -1,6 +1,6 @@
 {
-  "version": "32.2.0",
+  "version": "33.0.0",
   "name": "Campingfinder",
-  "release": "v32.2",
-  "notes": "Stabilitätsrelease: Endlosschleifen in MutationObservern behoben, v32-Responsive-CSS statisch geladen, iPhone/Safari-Seitenaufbau gehärtet und mobile Navigation auf sechs feste Bereiche korrigiert."
+  "release": "v33.0",
+  "notes": "Komplettes Premium-Redesign nach dem abgestimmten Smartphone-Mockup: großer Markenheader, KI/Klassik-Segmentsuche, Profilkarte, Schnellfilter-Chips, Karten-Vorschau mit Listenumschaltung, kompakte Ergebniskarten und feste 6er-Navigation. Bestehende Funktionen bleiben erhalten."
 }
